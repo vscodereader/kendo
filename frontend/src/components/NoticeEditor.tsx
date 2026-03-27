@@ -10,15 +10,24 @@ import {
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
-const SizeClass = Quill.import('attributors/class/size');
+type QuillAttributorClass = {
+  whitelist: string[];
+};
+
+type QuillBlockEmbedClass = {
+  new (...args: any[]): any;
+  create(value?: unknown): HTMLElement;
+};
+
+const SizeClass = Quill.import('attributors/class/size') as QuillAttributorClass;
 SizeClass.whitelist = ['small', 'normal', 'large', 'huge'];
-Quill.register(SizeClass, true);
+Quill.register('attributors/class/size', SizeClass, true);
 
-const FontClass = Quill.import('attributors/class/font');
+const FontClass = Quill.import('attributors/class/font') as QuillAttributorClass;
 FontClass.whitelist = ['sans', 'serif', 'monospace'];
-Quill.register(FontClass, true);
+Quill.register('attributors/class/font', FontClass, true);
 
-const BlockEmbed = Quill.import('blots/block/embed');
+const BlockEmbed = Quill.import('blots/block/embed') as unknown as QuillBlockEmbedClass;
 
 export type MoneySnapshotEmbedPayload = {
   title: string;
@@ -54,7 +63,7 @@ class MoneyTableBlot extends BlockEmbed {
   }
 }
 
-Quill.register(MoneyTableBlot, true);
+Quill.register('formats/moneytable', MoneyTableBlot, true);
 
 export type NoticeEditorHandle = {
   insertTextAtCursor: (text: string) => void;

@@ -212,7 +212,12 @@ router.get('/pages/:slug', requireAuth, async (req, res, next) => {
 
     const active = await buildActiveClubContext(req.user!.id);
 
-    if (!canViewBoardPage(active, slug)) {
+    if (!active || !active.user) {
+  res.status(403).json({ message: '권한이 없습니다.' });
+  return;
+}
+
+if (!canViewBoardPage(active, slug)) {
       res.status(403).json({ message: '권한이 없습니다.' });
       return;
     }
@@ -235,7 +240,12 @@ router.put('/pages/:slug', requireAuth, async (req, res, next) => {
 
     const active = await buildActiveClubContext(req.user!.id);
 
-    if (!canEditBoardPage(active)) {
+    if (!active || !active.user) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
+
+    if (!canViewBoardPage(active, slug)) {
       res.status(403).json({ message: '권한이 없습니다.' });
       return;
     }
@@ -401,7 +411,7 @@ router.post('/rosters/save', requireAuth, async (req, res, next) => {
           data: {
             title: baseRoster.title,
             rosterYear: seoul.year,
-            savedAt: seoul.now,
+            savedAt: new Date(),
             isActive: true,
             members: {
               create: normalizedRows.map((row) => ({
@@ -457,7 +467,7 @@ router.post('/rosters/save', requireAuth, async (req, res, next) => {
           data: {
             title: normalizedTitle ?? seoul.rosterTitle,
             rosterYear: seoul.year,
-            savedAt: seoul.now,
+            savedAt: new Date(),
             isActive: true,
             createdByUserId: req.user!.id,
             members: {
@@ -586,15 +596,15 @@ router.post('/schedule/events/save', requireAuth, async (req, res, next) => {
 
     const rawEvents = Array.isArray(req.body?.events) ? req.body.events : [];
     const normalizedEvents = rawEvents
-      .map((row, index) => normalizeSubmittedScheduleEvent(row as Record<string, unknown>, index))
-      .filter((row): row is SubmittedScheduleEvent => Boolean(row));
+      .map((row: unknown, index: number) => normalizeSubmittedScheduleEvent(row as Record<string, unknown>, index))
+      .filter((row: SubmittedScheduleEvent | null): row is SubmittedScheduleEvent => Boolean(row));
 
     const saved = await prisma.$transaction(async (tx) => {
       await tx.clubScheduleEvent.deleteMany({});
 
       if (normalizedEvents.length > 0) {
         await tx.clubScheduleEvent.createMany({
-          data: normalizedEvents.map((item) => ({
+          data: normalizedEvents.map((item: SubmittedScheduleEvent) => ({
             title: item.title,
             displayNote: item.displayNote,
             startDateKey: item.startDateKey,
@@ -698,20 +708,27 @@ function normalizePageSlug(value: string): BoardPageSlug | null {
   return null;
 }
 
-function canEditBoardPage(active: {
-  user: { systemRole: string };
-  activeMember: { role: string } | null;
-}) {
+function canEditBoardPage(
+  active:
+    | {
+        user: { systemRole: string } | null;
+        activeMember: { role: string } | null;
+      }
+    | null
+) {
+  if (!active?.user) return false;
   if (active.user.systemRole === 'ROOT') return true;
   const role = normalizeClubRole(active.activeMember?.role ?? '일반');
   return role === '임원' || role === '부회장' || role === '회장';
 }
 
 function canViewBoardPage(
-  active: {
-    user: { systemRole: string };
-    activeMember: { role: string } | null;
-  },
+  active:
+    | {
+        user: { systemRole: string } | null;
+        activeMember: { role: string } | null;
+      }
+    | null,
   slug: BoardPageSlug
 ) {
   if (slug === 'gym') return true;
@@ -1202,31 +1219,42 @@ function buildContactWhere(query: string | null, field: ContactSearchField) {
   };
 }
 
-function canManagerReadSecretContact(active: {
-  user: { systemRole: string };
-  activeMember: { role: string } | null;
-}) {
+function canManagerReadSecretContact(
+  active:
+    | {
+        user: { systemRole: string } | null;
+        activeMember: { role: string } | null;
+      }
+    | null
+) {
+  if (!active?.user) return false;
   if (active.user.systemRole === 'ROOT') return true;
   const role = normalizeClubRole(active.activeMember?.role ?? '일반');
   return role === '임원' || role === '부회장' || role === '회장';
 }
 
-function canRevealAnonymousContactAuthor(active: {
-  user: { systemRole: string };
-  activeMember: { role: string } | null;
-}) {
+function canRevealAnonymousContactAuthor(
+  active:
+    | {
+        user: { systemRole: string } | null;
+        activeMember: { role: string } | null;
+      }
+    | null
+) {
+  if (!active?.user) return false;
   if (active.user.systemRole === 'ROOT') return true;
   const role = normalizeClubRole(active.activeMember?.role ?? '일반');
   return role === '회장';
 }
 
 function isContactAuthor(
-  active: NonNullable<Awaited<ReturnType<typeof buildActiveClubContext>>>,
+  active: Awaited<ReturnType<typeof buildActiveClubContext>>,
   post: {
     authorUserId: string;
     authorMemberId: string | null;
   }
 ) {
+  if (!active?.user) return false;
   return active.user.id === post.authorUserId || (!!active.activeMember?.id && active.activeMember.id === post.authorMemberId);
 }
 
@@ -1243,10 +1271,15 @@ function canOpenContactPost(
   return isContactAuthor(active, post);
 }
 
-function canDeleteAnyContact(active: {
-  user: { systemRole: string };
-  activeMember: { role: string } | null;
-}) {
+function canDeleteAnyContact(
+  active:
+    | {
+        user: { systemRole: string } | null;
+        activeMember: { role: string } | null;
+      }
+    | null
+) {
+  if (!active?.user) return false;
   if (active.user.systemRole === 'ROOT') return true;
   const role = normalizeClubRole(active.activeMember?.role ?? '일반');
   return role === '임원' || role === '부회장' || role === '회장';
@@ -1617,9 +1650,9 @@ router.post('/notice/posts', requireAuth, noticeUpload.array('attachments', 10),
     }
 
     const authorDisplayName =
-      req.user?.systemRole === 'ROOT'
+      context.active.user?.systemRole === 'ROOT'
         ? 'Admin'
-        : context.active.activeMember?.name ?? req.user?.email ?? '운영진';
+        : context.active.activeMember?.name ?? context.active.user?.email ?? '운영진';
 
     const saved = await prisma.clubNoticePost.create({
       data: {
@@ -1632,7 +1665,7 @@ router.post('/notice/posts', requireAuth, noticeUpload.array('attachments', 10),
             fileName: file.originalname,
             mimeType: file.mimetype || 'application/octet-stream',
             fileSize: file.size,
-            data: file.buffer
+            data: new Uint8Array(file.buffer)
           }))
         }
       },
@@ -1703,7 +1736,7 @@ router.put('/notice/posts/:postId', requireAuth, noticeUpload.array('attachments
           fileName: file.originalname,
           mimeType: file.mimetype || 'application/octet-stream',
           fileSize: file.size,
-          data: file.buffer
+          data: new Uint8Array(file.buffer)
         }))
       };
     }
@@ -1949,9 +1982,9 @@ router.post('/events/posts', requireAuth, noticeUpload.array('attachments', 10),
     }
 
     const authorDisplayName =
-      req.user?.systemRole === 'ROOT'
+      context.active.user?.systemRole === 'ROOT'
         ? 'Admin'
-        : context.active.activeMember?.name ?? req.user?.email ?? '운영진';
+        : context.active.activeMember?.name ?? context.active.user?.email ?? '운영진';
 
     const saved = await prisma.clubEventPost.create({
       data: {
@@ -1964,7 +1997,7 @@ router.post('/events/posts', requireAuth, noticeUpload.array('attachments', 10),
             fileName: file.originalname,
             mimeType: file.mimetype || 'application/octet-stream',
             fileSize: file.size,
-            data: file.buffer
+            data: new Uint8Array(file.buffer)
           }))
         }
       },
@@ -2035,7 +2068,7 @@ router.put('/events/posts/:postId', requireAuth, noticeUpload.array('attachments
           fileName: file.originalname,
           mimeType: file.mimetype || 'application/octet-stream',
           fileSize: file.size,
-          data: file.buffer
+          data: new Uint8Array(file.buffer)
         }))
       };
     }
@@ -2168,6 +2201,10 @@ router.delete('/events/posts/:postId', requireAuth, async (req, res, next) => {
 router.get('/contact/posts', requireAuth, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
+    if (!active || !active.user) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
 
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = 10;
@@ -2200,6 +2237,10 @@ router.get('/contact/posts', requireAuth, async (req, res, next) => {
 router.get('/contact/posts/:postId', requireAuth, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
+    if (!active || !active.user) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
 
     const post = await prisma.clubContactPost.findUnique({
       where: { id: String(req.params.postId) }
@@ -2233,6 +2274,10 @@ router.get('/contact/posts/:postId', requireAuth, async (req, res, next) => {
 router.post('/contact/posts', requireAuth, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
+    if (!active || !active.user) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
 
     const { title, bodyHtml, isSecret, isAnonymous } = req.body as {
       title?: string;
@@ -2280,6 +2325,10 @@ router.post('/contact/posts', requireAuth, async (req, res, next) => {
 router.put('/contact/posts/:postId', requireAuth, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
+    if (!active || !active.user) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
     const postId = String(req.params.postId);
 
     const existing = await prisma.clubContactPost.findUnique({
@@ -2335,6 +2384,10 @@ router.put('/contact/posts/:postId', requireAuth, async (req, res, next) => {
 router.delete('/contact/posts/:postId', requireAuth, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
+    if (!active || !active.user) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
     const postId = String(req.params.postId);
 
     const existing = await prisma.clubContactPost.findUnique({

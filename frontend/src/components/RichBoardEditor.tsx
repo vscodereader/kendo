@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
-const SizeClass = Quill.import('attributors/class/size');
-SizeClass.whitelist = ['small', 'normal', 'large', 'huge'];
-Quill.register(SizeClass, true);
+type QuillAttributorClass = {
+  whitelist: string[];
+};
 
-const FontClass = Quill.import('attributors/class/font');
+const SizeClass = Quill.import('attributors/class/size') as QuillAttributorClass;
+SizeClass.whitelist = ['small', 'normal', 'large', 'huge'];
+Quill.register('attributors/class/size', SizeClass, true);
+
+const FontClass = Quill.import('attributors/class/font') as QuillAttributorClass;
 FontClass.whitelist = ['sans', 'serif', 'monospace'];
-Quill.register(FontClass, true);
+Quill.register('attributors/class/font', FontClass, true);
 
 type Props = {
   value: string;
@@ -86,7 +90,7 @@ function RichBoardEditor({ value, onChange }: Props) {
 
   const applyInlineFormat = useCallback(
     (name: string, value: unknown) => {
-      withStoredSelection((editor) => {
+      withStoredSelection((editor: any) => {
         editor.format(name, value, 'user');
       });
     },
@@ -95,7 +99,7 @@ function RichBoardEditor({ value, onChange }: Props) {
 
   const applyLineFormat = useCallback(
     (name: string, value: unknown) => {
-      withStoredSelection((editor, range) => {
+      withStoredSelection((editor: any, range: SavedRange) => {
         editor.formatLine(range.index, Math.max(range.length, 1), name, value, 'user');
       });
     },
