@@ -19,6 +19,7 @@ import EventsListPage from './pages/EventsListPage';
 import EventsWritePage from './pages/EventsWritePage';
 import EventsDetailPage from './pages/EventsDetailPage';
 import SectionLayout from './components/SectionLayout';
+import LoginCallbackPage from './pages/LoginCallbackPage';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
       <Route path="/" element={<Navigate to="/main" replace />} />
       <Route path="/main" element={<MainPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/callback" element={<LoginCallbackPage />} />
       <Route path="/profile-setup" element={<ProfileSetupGuard />} />
       <Route path="/select" element={<SelectGuard />} />
 
