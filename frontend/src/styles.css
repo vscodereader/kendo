@@ -5541,3 +5541,92 @@ textarea::placeholder {
 .schedule-click-note {
   color: #111111 !important;
 }
+/* ===== 드롭다운/목록/표 글씨색 복구 ===== */
+
+/* 상단 불러오기 select, 필터 select, 표 안 select */
+.wide-select,
+.wide-select option,
+.filter-field select,
+.filter-field select option,
+.excel-table select,
+.excel-table select option,
+.excel-table td select,
+.excel-table td select option {
+  color: #111111 !important;
+  background: #ffffff !important;
+}
+
+/* 동아리원/예산등록 표 안의 일반 텍스트 */
+.excel-table tbody td,
+.excel-table tbody td span,
+.excel-table tbody td strong,
+.excel-table tbody td p,
+.excel-table tbody td div {
+  color: #111111 !important;
+}
+
+/* 표 안 input / select / 읽기전용처럼 보이는 칸 */
+.excel-table tbody td input,
+.excel-table tbody td select,
+.excel-table tbody td input::placeholder,
+.excel-table tbody td select::placeholder,
+.readonly-like {
+  color: #111111 !important;
+}
+
+/* 예산등록 표 숫자/계산값 */
+.money-number-cell,
+.money-number-cell * {
+  color: #111111 !important;
+}
+
+/* ===== 공지작성/대회작성에서 회비내역 가져오기 모달 ===== */
+
+/* 모달 안 제목/설명 글씨 */
+.modal-card,
+.modal-card h3,
+.modal-card p,
+.modal-card label,
+.modal-card span {
+  color: #111111 !important;
+}
+
+/* 확인/취소 버튼 제외한 모달 내부 박스 경계선 */
+.modal-card select,
+.modal-card input,
+.notice-money-select {
+  color: #111111 !important;
+  background: #ffffff !important;
+  border: 2px solid #111111 !important;
+}
+
+/* 모달 select 펼쳤을 때 목록 글씨 */
+.modal-card select option,
+.notice-money-select option {
+  color: #111111 !important;
+  background: #ffffff !important;
+}
+
+/* ===== 동아리원 관리에서 불러오기 목록/필터 목록 ===== */
+
+/* 명단 불러오기 select 펼침 목록 */
+.table-page-header-actions .wide-select,
+.table-page-header-actions .wide-select option {
+  color: #111111 !important;
+  background: #ffffff !important;
+}
+
+/* 교육반/직책 필터 드롭다운 목록 */
+.filter-card .filter-field select,
+.filter-card .filter-field select option {
+  color: #111111 !important;
+  background: #ffffff !important;
+}
+
+/* ===== 예산등록에서 불러오기 목록 ===== */
+
+.table-page-header .wide-select,
+.table-page-header .wide-select option {
+  color: #111111 !important;
+  background: #ffffff !important;
+}
