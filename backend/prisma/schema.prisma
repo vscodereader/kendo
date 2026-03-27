@@ -1,0 +1,339 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                     String                @id @default(cuid())
+  googleId               String                @unique
+  email                  String                @unique
+  googleName             String?
+  googleImage            String?
+  displayName            String?
+  studentId              String?               @unique
+  grade                  Int?
+  age                    Int?
+  trainingType           String?
+  department             String?
+  systemRole             String                @default("USER")
+  agreedPersonalPolicyAt DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  catalogs               CurriculumCatalog[]
+  completedCourseSets    CompletedCourseSet[]
+  linkedClubMembers      ClubMember[]
+  createdMemberRosters   MemberRoster[]        @relation("MemberRosterCreatedBy")
+  createdMoneySnapshots  MoneyLedgerSnapshot[] @relation("MoneySnapshotCreatedBy")
+  bannedAccounts         BannedAccount[]       @relation("BannedByUser")
+  pageContentsUpdated ClubPageContent[] @relation("PageUpdatedBy")
+}
+
+model CurriculumSource {
+  id          String   @id @default(cuid())
+  title       String
+  category    String
+  year        Int?
+  sourceUrl   String   @unique
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  catalogs    CurriculumCatalog[]
+}
+
+model CurriculumCatalog {
+  id                     String                  @id @default(cuid())
+  userId                 String
+  year                   Int
+  major                  String
+  track                  String?
+  notes                  String?
+  sourceUrl              String?
+  sourceId               String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source                 CurriculumSource?       @relation(fields: [sourceId], references: [id])
+  courses                RequiredCourse[]
+  graduationRequirements GraduationRequirement[]
+
+  @@index([userId])
+  @@index([year, major])
+}
+
+model RequiredCourse {
+  id               String            @id @default(cuid())
+  catalogId        String
+  courseCode       String?
+  name             String
+  credit           Int?
+  classification   String?
+  classification1  String?
+  classification2  String?
+  isRequired       Boolean           @default(true)
+  semesterText     String?
+  yearLevel        Int?
+  semesterOrder    Int?
+  sourceImageLabel String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  catalog          CurriculumCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  @@index([catalogId])
+  @@index([courseCode])
+}
+
+model GraduationRequirement {
+  id        String            @id @default(cuid())
+  catalogId String
+  section   String
+  label     String
+  credits   Int?
+  theory    Int?
+  practice  Int?
+  sortOrder Int               @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  catalog   CurriculumCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  @@index([catalogId])
+  @@index([section])
+}
+
+model CompletedCourseSet {
+  id          String             @id @default(cuid())
+  userId      String
+  title       String
+  studentName String?
+  studentNo   String?
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses     CompletedCourse[]
+
+  @@index([userId])
+}
+
+model CompletedCourse {
+  id               String             @id @default(cuid())
+  setId            String
+  yearTaken        Int?
+  termText         String?
+  courseCode       String?
+  name             String
+  classification   String?
+  classification1  String?
+  classification2  String?
+  credit           Int?
+  gradeText        String?
+  professor        String?
+  sourceImageLabel String?
+  rawText          String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  set              CompletedCourseSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+  @@index([courseCode])
+}
+
+model MemberRoster {
+  id              String       @id @default(cuid())
+  title           String
+  rosterYear      Int
+  isActive        Boolean      @default(false)
+  savedAt         DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  createdByUserId String?
+
+  createdBy       User?        @relation("MemberRosterCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  members         ClubMember[]
+
+  @@index([savedAt])
+  @@index([isActive])
+}
+
+model ClubMember {
+  id            String       @id @default(cuid())
+  rosterId       String
+  linkedUserId   String?
+  email          String?
+  year           Int
+  studentId      Int?
+  grade          Int?
+  age            Int?
+  name           String
+  trainingType   String       @default("기본")
+  department     String?
+  role           String       @default("일반")
+  roleDetail     String?
+  isAdmin        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  roster         MemberRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  linkedUser     User?        @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@index([rosterId])
+  @@index([linkedUserId])
+  @@index([email])
+  @@index([studentId])
+  @@index([isAdmin])
+}
+
+model BannedAccount {
+  id             String    @id @default(cuid())
+  email          String?   @unique
+  googleId       String?   @unique
+  studentId      Int?
+  name           String?
+  reason         String?
+  bannedAt       DateTime  @default(now())
+  bannedByUserId String?
+
+  bannedBy       User?     @relation("BannedByUser", fields: [bannedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+}
+
+model MoneyLedgerSnapshot {
+  id              String           @id @default(cuid())
+  title           String
+  isActive        Boolean          @default(false)
+  savedAt         DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  createdByUserId String?
+
+  createdBy       User?            @relation("MoneySnapshotCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  entries         MoneyLedgerEntry[]
+
+  @@index([savedAt])
+  @@index([isActive])
+}
+
+model MoneyLedgerEntry {
+  id             String              @id @default(cuid())
+  snapshotId     String
+  sortOrder      Int                 @default(0)
+  category       String?
+  item           String?
+  note           String?
+  income         Int?
+  expense        Int?
+  remainingFee   Int?
+  leftFee        Int?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  snapshot       MoneyLedgerSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId, sortOrder])
+}
+
+model ClubPageContent {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  bodyHtml        String   @db.Text
+  placeName       String?
+  address         String?
+  mapLink         String?
+  updatedByUserId String?
+  updatedByUser   User?    @relation("PageUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ClubScheduleEvent {
+  id          String   @id @default(cuid())
+  title       String
+  displayNote String?  @db.Text
+  startDateKey String
+  endDateKey   String
+  colorHex    String   @default("#4f6df5")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ClubNoticePost {
+  id                String   @id @default(cuid())
+  title             String
+  bodyHtml          String   @db.Text
+  isPinned          Boolean  @default(false)
+  createdByUserId   String?
+  authorDisplayName String
+  viewCount         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  attachments ClubNoticeAttachment[]
+}
+
+model ClubContactPost {
+  id             String   @id @default(cuid())
+  title          String
+  bodyHtml       String   @db.Text
+  isSecret       Boolean  @default(false)
+  isAnonymous    Boolean  @default(false)
+  authorUserId   String
+  authorMemberId String?
+  authorName     String
+  viewCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ClubNoticeAttachment {
+  id        String   @id @default(cuid())
+  postId    String
+  fileName  String
+  mimeType  String
+  fileSize  Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  post ClubNoticePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model ClubEventPost {
+  id                String                @id @default(cuid())
+  title             String
+  bodyHtml          String
+  createdByUserId   String
+  authorDisplayName String
+  viewCount         Int                   @default(0)
+  isPinned          Boolean               @default(false)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  attachments ClubEventAttachment[]
+
+  @@index([createdAt])
+  @@index([isPinned, createdAt])
+}
+
+model ClubEventAttachment {
+  id        String   @id @default(cuid())
+  postId    String
+  fileName  String
+  mimeType  String
+  fileSize  Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  post ClubEventPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
