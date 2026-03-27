@@ -5535,3 +5535,9 @@ textarea::placeholder {
 .contact-write-card .notice-file-empty {
   color: rgba(255, 255, 255, 0.72) !important;
 }
+
+.schedule-note-cell,
+.schedule-note-cell span,
+.schedule-click-note {
+  color: #111111 !important;
+}
