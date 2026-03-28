@@ -81,7 +81,9 @@ function ProfileSetupGuard() {
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (user?.profileCompleted) return <Navigate to="/select" replace />;
+  if (user?.profileCompleted || user?.isRoot) {
+    return <Navigate to="/main" replace />;
+  }
 
   return <ProfileSetupPage />;
 }
