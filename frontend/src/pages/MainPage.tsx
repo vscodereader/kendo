@@ -57,8 +57,7 @@ function MainPage() {
   const { pushToast } = useToast();
   useEffect(() => {
     if (loading) return;
-
-    if (authenticated && user && !user.isRoot && !user.profileCompleted) {
+    if (authenticated && user && !user.profileCompleted) {
       navigate('/profile-setup', { replace: true });
     }
   }, [loading, authenticated, user, navigate]);

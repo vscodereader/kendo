@@ -47,15 +47,12 @@ router.get('/google/callback', (req, res, next) => {
           return;
         }
 
-        const root = isRootUser(current);
-        const profileCompleted = root
-          ? true
-          : Boolean(
-              current.studentId &&
-                current.displayName &&
-                current.department &&
-                current.agreedPersonalPolicyAt
-            );
+        const profileCompleted = Boolean(
+          current.studentId &&
+            current.displayName &&
+            current.department &&
+            current.agreedPersonalPolicyAt
+        );
 
         if (!profileCompleted) {
           res.redirect(`${clientUrl}/profile-setup`);
@@ -85,9 +82,12 @@ router.get('/me', async (req, res, next) => {
 
     const { user, activeMember, latestRoster } = context;
     const root = isRootUser(user);
-    const profileCompleted = root
-      ? true
-      : Boolean(user.studentId && user.displayName && user.department && user.agreedPersonalPolicyAt);
+    const profileCompleted = Boolean(
+      user.studentId &&
+        user.displayName &&
+        user.department &&
+        user.agreedPersonalPolicyAt
+    );
     const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
 
     res.json({
@@ -126,38 +126,6 @@ router.post('/profile-setup', requireAuth, async (req, res, next) => {
   try {
     const current = await prisma.user.findUnique({ where: { id: req.user!.id } });
     const root = isRootUser(current);
-    if (root && current) {
-      const context = await buildActiveClubContext(current.id);
-      const activeMember = context?.activeMember;
-      res.json({
-        ok: true,
-        user: {
-          id: current.id,
-          email: current.email,
-          googleName: current.googleName,
-          googleImage: current.googleImage,
-          displayName: 'Admin',
-          studentId: null,
-          grade: null,
-          age: null,
-          trainingType: '기본',
-          department: null,
-          profileCompleted: true,
-          clubRole: '관리자',
-          clubRoleDetail: 'Admin',
-          memberId: activeMember?.id ?? null,
-          isRoot: true,
-          systemRole: 'ROOT',
-          permissions: {
-            canManageRoster: true,
-            canManageMoney: true,
-            canLead: true
-          }
-        }
-      });
-      return;
-    }
-
     const { studentId, displayName, agreePersonalPolicy, grade, age, trainingType, department } = req.body as {
       studentId?: string;
       displayName?: string;
@@ -237,7 +205,7 @@ router.post('/profile-setup', requireAuth, async (req, res, next) => {
 
     const context = await buildActiveClubContext(updated.id);
     const activeMember = context?.activeMember;
-    const clubRole = normalizeClubRole(activeMember?.role ?? '일반');
+    const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
 
     res.json({
       ok: true,
@@ -254,14 +222,14 @@ router.post('/profile-setup', requireAuth, async (req, res, next) => {
         department: updated.department ?? null,
         profileCompleted: true,
         clubRole,
-        clubRoleDetail: activeMember?.roleDetail ?? null,
+        clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
         memberId: activeMember?.id ?? null,
-        isRoot: false,
-        systemRole: 'USER',
+        isRoot: root,
+        systemRole: root ? 'ROOT' : 'USER',
         permissions: {
-          canManageRoster: canManageRoster(clubRole),
-          canManageMoney: canManageRoster(clubRole),
-          canLead: canLead(clubRole)
+          canManageRoster: root ? true : canManageRoster(clubRole),
+          canManageMoney: root ? true : canManageRoster(clubRole),
+          canLead: root ? true : canLead(clubRole)
         }
       }
     });

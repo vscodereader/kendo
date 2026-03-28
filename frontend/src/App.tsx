@@ -81,7 +81,8 @@ function ProfileSetupGuard() {
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (user?.profileCompleted || user?.isRoot) return <Navigate to="/select" replace />;
+  if (user?.profileCompleted) return <Navigate to="/select" replace />;
+
   return <ProfileSetupPage />;
 }
 
@@ -90,7 +91,8 @@ function SelectGuard() {
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (!user?.profileCompleted && !user?.isRoot) return <Navigate to="/profile-setup" replace />;
+  if (!user?.profileCompleted) return <Navigate to="/profile-setup" replace />;
+
   return <SelectPage />;
 }
 
@@ -106,7 +108,7 @@ function ManageGuard({
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (!user?.profileCompleted && !user?.isRoot) return <Navigate to="/profile-setup" replace />;
+  if (!user?.profileCompleted) return <Navigate to="/profile-setup" replace />;
 
   const allowed = user?.isRoot
     ? true

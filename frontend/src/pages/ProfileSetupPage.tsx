@@ -42,7 +42,7 @@ function ProfileSetupPage() {
 
       await refreshMe();
       pushToast('프로필이 저장되었습니다.', 'success');
-      navigate('/select', { replace: true });
+      navigate('/main', { replace: true });
     } catch (error) {
       pushToast(error instanceof Error ? error.message : '프로필 저장 중 오류가 발생했습니다.', 'error');
     } finally {
