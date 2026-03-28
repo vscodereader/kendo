@@ -55,6 +55,13 @@ function MainPage() {
   const navigate = useNavigate();
   const { user, authenticated, loading, logout } = useAuth();
   const { pushToast } = useToast();
+  useEffect(() => {
+    if (loading) return;
+
+    if (authenticated && user && !user.isRoot && !user.profileCompleted) {
+      navigate('/profile-setup', { replace: true });
+    }
+  }, [loading, authenticated, user, navigate]);
 
   const [sectionIndex, setSectionIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);

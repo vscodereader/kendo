@@ -31,13 +31,41 @@ router.get('/google/callback', (req, res, next) => {
       return;
     }
 
-    req.logIn(user, (loginError) => {
+    req.logIn(user, async (loginError) => {
       if (loginError) {
         next(loginError);
         return;
       }
 
-      res.redirect(`${clientUrl}/login/callback`);
+      try {
+        const current = await prisma.user.findUnique({
+          where: { id: req.user!.id }
+        });
+
+        if (!current) {
+          res.redirect(`${clientUrl}/login?error=${encodeURIComponent('google')}`);
+          return;
+        }
+
+        const root = isRootUser(current);
+        const profileCompleted = root
+          ? true
+          : Boolean(
+              current.studentId &&
+                current.displayName &&
+                current.department &&
+                current.agreedPersonalPolicyAt
+            );
+
+        if (!profileCompleted) {
+          res.redirect(`${clientUrl}/profile-setup`);
+          return;
+        }
+
+        res.redirect(`${clientUrl}/main`);
+      } catch (error) {
+        next(error);
+      }
     });
   })(req, res, next);
 });
