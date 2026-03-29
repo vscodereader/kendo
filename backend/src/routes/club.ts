@@ -1728,7 +1728,18 @@ router.put('/notice/posts/:postId', requireAuth, noticeUpload.array('attachments
       return;
     }
 
-    const updateData: Prisma.ClubNoticePostUpdateInput = {
+    const updateData: {
+      title: string;
+      bodyHtml: string;
+      attachments?: {
+        create: Array<{
+          fileName: string;
+          mimeType: string;
+          fileSize: number;
+          data: Uint8Array;
+        }>;
+      };
+    } = {
       title: normalizedTitle,
       bodyHtml: normalizedBody
     };
@@ -2060,7 +2071,18 @@ router.put('/events/posts/:postId', requireAuth, noticeUpload.array('attachments
       return;
     }
 
-    const updateData: Prisma.ClubEventPostUpdateInput = {
+    const updateData: {
+      title: string;
+      bodyHtml: string;
+      attachments?: {
+        create: Array<{
+          fileName: string;
+          mimeType: string;
+          fileSize: number;
+          data: Uint8Array;
+        }>;
+      };
+    } = {
       title: normalizedTitle,
       bodyHtml: normalizedBody
     };

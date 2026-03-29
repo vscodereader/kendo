@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { isNativeApp, openExternalAuth } from '../lib/mobile';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+const RAW_API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_BASE ||
+  'https://kendo-gohi.onrender.com/api';
+
+const API_BASE = RAW_API_BASE.replace(/\/$/, '');
 const MOBILE_REDIRECT_URI = 'kendoapp://auth/login/callback';
 
 function LoginPage() {

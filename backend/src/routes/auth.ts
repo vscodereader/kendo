@@ -12,24 +12,30 @@ import {
   sanitizeNullableInt,
   sanitizeNullableString
 } from '../lib/club.js';
-import { signMobileLoginCode, signMobileToken, verifyMobileLoginCode } from '../lib/mobileAuth.js';
+import {
+  signMobileLoginCode,
+  signMobileOAuthState,
+  signMobileToken,
+  verifyMobileLoginCode,
+  verifyMobileOAuthState
+} from '../lib/mobileAuth.js';
 
 const router = Router();
 const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
 
 router.get('/google/mobile', (req, res, next) => {
-  const redirectUri = String(req.query.redirect_uri || 'kendoapp://auth/login/callback');
+  try {
+    const redirectUri = String(req.query.redirect_uri || 'kendoapp://auth/login/callback');
+    const state = signMobileOAuthState(redirectUri);
 
-  const sessionWithMobile = req.session as typeof req.session & {
-    mobileRedirectUri?: string;
-  };
-
-  sessionWithMobile.mobileRedirectUri = redirectUri;
-  next();
-}, passport.authenticate('google', {
-  scope: ['profile', 'email'],
-  prompt: 'select_account'
-}));
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      state
+    })(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post('/mobile/exchange', async (req, res, next) => {
   try {
@@ -52,13 +58,13 @@ router.post('/mobile/exchange', async (req, res, next) => {
       return;
     }
 
-    const { user, activeMember } = context;
+    const { user, activeMember, latestRoster } = context;
     const root = isRootUser(user);
     const profileCompleted = Boolean(
       user.studentId &&
-      user.displayName &&
-      user.department &&
-      user.agreedPersonalPolicyAt
+        user.displayName &&
+        user.department &&
+        user.agreedPersonalPolicyAt
     );
     const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
 
@@ -81,7 +87,7 @@ router.post('/mobile/exchange', async (req, res, next) => {
         profileCompleted,
         clubRole,
         clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
-        activeRosterId: activeMember?.rosterId ?? null,
+        activeRosterId: latestRoster?.id ?? null,
         memberId: activeMember?.id ?? null,
         isRoot: root,
         systemRole: root ? 'ROOT' : 'USER',
@@ -97,10 +103,7 @@ router.post('/mobile/exchange', async (req, res, next) => {
   }
 });
 
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-  prompt: 'select_account'
-}));
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', (error: unknown, user: Express.User | false, info?: { message?: string }) => {
@@ -138,14 +141,21 @@ router.get('/google/callback', (req, res, next) => {
             current.agreedPersonalPolicyAt
         );
 
-        const sessionWithMobile = req.session as typeof req.session & {
-          mobileRedirectUri?: string;
-        };
+        const rawState = typeof req.query.state === 'string' ? req.query.state : '';
+        let mobileRedirectUri: string | null = null;
 
-        const mobileRedirectUri = sessionWithMobile.mobileRedirectUri;
+        if (rawState) {
+          try {
+            const statePayload = verifyMobileOAuthState(rawState);
+            if (statePayload.type === 'mobile-oauth-state') {
+              mobileRedirectUri = statePayload.redirectUri;
+            }
+          } catch {
+            mobileRedirectUri = null;
+          }
+        }
 
         if (mobileRedirectUri) {
-          delete sessionWithMobile.mobileRedirectUri;
           const nextPath = profileCompleted ? '/main' : '/profile-setup';
           const code = signMobileLoginCode(current.id, nextPath);
           res.redirect(`${mobileRedirectUri}?code=${encodeURIComponent(code)}`);
@@ -158,8 +168,8 @@ router.get('/google/callback', (req, res, next) => {
         }
 
         res.redirect(`${clientUrl}/main`);
-      } catch (error) {
-        next(error);
+      } catch (callbackError) {
+        next(callbackError);
       }
     });
   })(req, res, next);
@@ -220,9 +230,9 @@ router.get('/me', async (req, res, next) => {
         isRoot: root,
         systemRole: root ? 'ROOT' : 'USER',
         permissions: {
-          canManageRoster: canManageRoster(clubRole),
-          canManageMoney: canManageRoster(clubRole),
-          canLead: canLead(clubRole)
+          canManageRoster: root ? true : canManageRoster(clubRole),
+          canManageMoney: root ? true : canManageRoster(clubRole),
+          canLead: root ? true : canLead(clubRole)
         }
       }
     });
