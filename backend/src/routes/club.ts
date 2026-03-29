@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../auth/requireAuth.js';
 import {
@@ -128,7 +129,7 @@ router.get('/money-snapshots', requireAuth, async (req, res, next) => {
     });
 
     res.json({
-      latestSnapshotId: snapshots.find((item) => item.isActive)?.id ?? null,
+      latestSnapshotId: snapshots.find((item: (typeof snapshots)[number]) => item.isActive)?.id ?? null,
       items: snapshots.map(toMoneySummary)
     });
   } catch (error) {
@@ -151,7 +152,7 @@ router.get('/money-snapshots/bootstrap', requireAuth, async (req, res, next) => 
       include: { _count: { select: { entries: true } } }
     });
 
-    const latestSnapshotId = snapshots.find((item) => item.isActive)?.id ?? latestSnapshot.id;
+    const latestSnapshotId = snapshots.find((item: (typeof snapshots)[number]) => item.isActive)?.id ?? latestSnapshot.id;
     const selectedSnapshotId = requestedSnapshotId ?? latestSnapshotId;
     const snapshot = selectedSnapshotId
       ? await prisma.moneyLedgerSnapshot.findUnique({
@@ -347,8 +348,10 @@ router.post('/rosters/save', requireAuth, async (req, res, next) => {
       return;
     }
 
-    const originalRows = baseRoster.members.filter((row) => !row.isAdmin);
-    const originalMap = new Map(originalRows.map((item) => [item.id, item]));
+    const originalRows = baseRoster.members.filter((row: (typeof baseRoster.members)[number]) => !row.isAdmin);
+    const originalMap = new Map<string, (typeof originalRows)[number]>(
+      originalRows.map((item: (typeof originalRows)[number]) => [item.id, item])
+    );
     const actorRole = normalizeClubRole(context.active.activeMember?.role ?? '일반');
 
     if (actorRole === '회장') {
@@ -383,9 +386,9 @@ router.post('/rosters/save', requireAuth, async (req, res, next) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    const removedRows = originalRows.filter((row) => !normalizedRows.some((item) => isSameIdentity(item, row)));
+    const removedRows = originalRows.filter((row: (typeof originalRows)[number]) => !normalizedRows.some((item) => isSameIdentity(item, row)));
 
-    const savedRoster = await prisma.$transaction(async (tx) => {
+    const savedRoster = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let rosterId: string;
 
       if (normalizedMode === 'overwrite') {
@@ -599,7 +602,7 @@ router.post('/schedule/events/save', requireAuth, async (req, res, next) => {
       .map((row: unknown, index: number) => normalizeSubmittedScheduleEvent(row as Record<string, unknown>, index))
       .filter((row: SubmittedScheduleEvent | null): row is SubmittedScheduleEvent => Boolean(row));
 
-    const saved = await prisma.$transaction(async (tx) => {
+    const saved = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.clubScheduleEvent.deleteMany({});
 
       if (normalizedEvents.length > 0) {
@@ -645,7 +648,7 @@ router.post('/money-snapshots/save', requireAuth, async (req, res, next) => {
     );
 
     const seoul = nowInSeoul();
-    const snapshot = await prisma.$transaction(async (tx) => {
+    const snapshot = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.moneyLedgerSnapshot.updateMany({ where: { isActive: true }, data: { isActive: false } });
       return tx.moneyLedgerSnapshot.create({
         data: {
@@ -1725,7 +1728,7 @@ router.put('/notice/posts/:postId', requireAuth, noticeUpload.array('attachments
       return;
     }
 
-    const updateData: Parameters<typeof prisma.clubNoticePost.update>[0]['data'] = {
+    const updateData: Prisma.ClubNoticePostUpdateInput = {
       title: normalizedTitle,
       bodyHtml: normalizedBody
     };
@@ -2057,7 +2060,7 @@ router.put('/events/posts/:postId', requireAuth, noticeUpload.array('attachments
       return;
     }
 
-    const updateData: Parameters<typeof prisma.clubEventPost.update>[0]['data'] = {
+    const updateData: Prisma.ClubEventPostUpdateInput = {
       title: normalizedTitle,
       bodyHtml: normalizedBody
     };
@@ -2227,7 +2230,7 @@ router.get('/contact/posts', requireAuth, async (req, res, next) => {
       currentPage: page,
       totalPages,
       totalCount,
-      items: items.map((item) => serializeContactSummary(active, item))
+      items: items.map((item: (typeof items)[number]) => serializeContactSummary(active, item))
     });
   } catch (error) {
     next(error);

@@ -427,7 +427,7 @@ router.post('/compare', requireAuth, async (req, res, next) => {
         return;
       }
 
-      normalizedRequired = catalog.courses.map((course) => ({
+      normalizedRequired = catalog.courses.map((course: (typeof catalog.courses)[number]) => ({
         id: course.id,
         courseCode: course.courseCode,
         name: course.name,
@@ -439,7 +439,7 @@ router.post('/compare', requireAuth, async (req, res, next) => {
         semesterOrder: course.semesterOrder
       }));
 
-      normalizedGraduationRequirements = catalog.graduationRequirements.map((item) => ({
+      normalizedGraduationRequirements = catalog.graduationRequirements.map((item: (typeof catalog.graduationRequirements)[number]) => ({
         label: item.label,
         credits: item.credits
       }));
@@ -477,7 +477,7 @@ router.post('/compare', requireAuth, async (req, res, next) => {
         return;
       }
 
-      normalizedCompleted = completedSet.courses.map((course) => ({
+      normalizedCompleted = completedSet.courses.map((course: (typeof completedSet.courses)[number]) => ({
         id: course.id,
         courseCode: course.courseCode,
         name: course.name,

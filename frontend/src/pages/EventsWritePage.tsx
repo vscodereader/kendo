@@ -5,6 +5,7 @@ import NoticeEditor, {
   type NoticeEditorHandle
 } from '../components/NoticeEditor';
 import { useToast } from '../lib/toast';
+import { apiFetch } from '../lib/auth';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -43,16 +44,13 @@ type MoneySnapshotDetail = MoneySnapshotEmbedPayload & {
 };
 
 async function apiRequest<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    ...init
-  });
+  const response = await apiFetch(`${API_BASE}${path}`, init);
 
   const contentType = response.headers.get('content-type') ?? '';
   const payload = contentType.includes('application/json') ? await response.json() : null;
 
   if (!response.ok) {
-    throw new Error(payload?.message ?? '요청에 실패했습니다.');
+    throw new Error((payload as { message?: string } | null)?.message ?? '요청에 실패했습니다.');
   }
 
   return payload as T;

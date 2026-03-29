@@ -9,6 +9,7 @@ import {
 } from 'react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import { focusClosestEditable } from '../lib/mobileFocus';
 
 type QuillAttributorClass = {
   whitelist: string[];
@@ -313,7 +314,7 @@ const NoticeEditor = forwardRef<NoticeEditorHandle, Props>(function NoticeEditor
   };
 
   return (
-    <div className="notice-editor">
+    <div className="notice-editor" onTouchEndCapture={focusClosestEditable}>
       <div id="notice-editor-toolbar" ref={toolbarRef}>
         <select className="ql-font" defaultValue="sans" title="글꼴">
           <option value="sans">기본</option>

@@ -20,6 +20,8 @@ import {
 import { useToast } from '../lib/toast';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import { useResizableColumns } from '../hooks/useResizableColumns';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { focusClosestEditable } from '../lib/mobileFocus';
 
 type AppointmentState = {
   targetId: string;
@@ -72,6 +74,7 @@ function MembersPage() {
   const [nameSearch, setNameSearch] = useState('');
 
   const { colStyles, startResize } = useResizableColumns(INITIAL_WIDTHS);
+  const isMobile = useIsMobile();
 
   const hasUnsavedChanges = useMemo(() => {
     if (!loadedRoster) return false;
@@ -417,7 +420,10 @@ function MembersPage() {
           </div>
         </div>
 
-        <div className="table-scroll-shell">
+        <div
+          className={`table-scroll-shell ${isMobile ? 'table-scroll-shell--mobile-compact' : ''}`}
+          onClickCapture={focusClosestEditable}
+        >
           <table className="excel-table">
             <colgroup>
               <col style={colStyles.year} />

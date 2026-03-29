@@ -1,14 +1,30 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { isNativeApp } from '../lib/mobile';
 
 function LoginCallbackPage() {
   const navigate = useNavigate();
-  const { refreshMe, user, loading } = useAuth();
+  const [params] = useSearchParams();
+  const { refreshMe, mobileLoginByCode, user, loading } = useAuth();
 
   useEffect(() => {
-    void refreshMe();
-  }, [refreshMe]);
+    const run = async () => {
+      if (isNativeApp()) {
+        const code = params.get('code');
+        if (!code) {
+          navigate('/login', { replace: true });
+          return;
+        }
+        await mobileLoginByCode(code);
+        return;
+      }
+
+      await refreshMe();
+    };
+
+    void run();
+  }, [params, refreshMe, mobileLoginByCode, navigate]);
 
   useEffect(() => {
     if (loading) return;

@@ -14,6 +14,9 @@ import {
 import { useToast } from '../lib/toast';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import { useResizableColumns } from '../hooks/useResizableColumns';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { focusClosestEditable } from '../lib/mobileFocus';
+import MobileQuickMoneyEntry from '../components/MobileQuickMoneyEntry';
 
 const INITIAL_WIDTHS = {
   category: 120,
@@ -39,6 +42,8 @@ function MoneyPaidPage() {
   const [search, setSearch] = useState('');
   const [highlightSave, setHighlightSave] = useState(false);
   const { colStyles, startResize } = useResizableColumns(INITIAL_WIDTHS);
+  const isMobile = useIsMobile();
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!loadedSnapshot) return false;
@@ -100,6 +105,29 @@ function MoneyPaidPage() {
 
   const handleAddRow = () => {
     setRows((current) => recalculateMoneyRows([...current, makeDraftMoneyRow()]));
+  };
+
+  const handleQuickSave = async (payload: {
+    item: string;
+    note: string;
+    income: number;
+    expense: number;
+  }) => {
+    setRows((current) =>
+      recalculateMoneyRows([
+        ...current,
+        {
+          ...makeDraftMoneyRow(),
+          category: '회비',
+          item: payload.item,
+          note: payload.note || null,
+          income: payload.income,
+          expense: payload.expense,
+          leftFee: 0,
+          checked: false
+        }
+      ])
+    );
   };
 
   const handleDeleteRows = () => {
@@ -170,6 +198,11 @@ function MoneyPaidPage() {
             <button className="row-add-btn" onClick={handleAddRow}>
               행 추가
             </button>
+            {isMobile ? (
+              <button className="ghost-btn" onClick={() => setQuickEntryOpen(true)}>
+                빠른 작성
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -191,7 +224,10 @@ function MoneyPaidPage() {
           </div>
         </div>
 
-        <div className="table-scroll-shell">
+        <div
+          className={`table-scroll-shell ${isMobile ? 'table-scroll-shell--mobile-compact' : ''}`}
+          onClickCapture={focusClosestEditable}
+        >
           <table className="excel-table">
             <colgroup>
               <col style={colStyles.category} />
@@ -288,20 +324,26 @@ function MoneyPaidPage() {
           </table>
         </div>
 
-        <div className="bottom-save-row">
-          <button
-            ref={saveButtonRef}
-            className={`save-primary-btn ${highlightSave ? 'save-primary-btn--highlight' : ''}`}
-            onClick={() => void handleSave()}
-            disabled={saving}
-          >
-            {saving ? '저장 중...' : '회비 저장'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+               <div className="bottom-save-row">
+                  <button
+                    ref={saveButtonRef}
+                    className={`save-primary-btn ${highlightSave ? 'save-primary-btn--highlight' : ''}`}
+                    onClick={() => void handleSave()}
+                    disabled={saving}
+                  >
+                    {saving ? '저장 중...' : '회비 저장'}
+                  </button>
+                </div>
+              </div>
+
+              <MobileQuickMoneyEntry
+                open={quickEntryOpen}
+                onClose={() => setQuickEntryOpen(false)}
+                onSave={handleQuickSave}
+              />
+            </div>
+          );
+        }
 
 function stripChecked(rows: MoneyRow[]) {
   return rows.map(({ checked, ...rest }) => rest);

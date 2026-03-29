@@ -13,6 +13,13 @@ import passport from './auth/passport.js';
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
+const allowedOrigins = new Set([
+  clientUrl,
+  'http://localhost:5173',
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost'
+]);
 const sessionSecret = process.env.SESSION_SECRET;
 
 if (!process.env.DATABASE_URL) {
@@ -34,8 +41,16 @@ app.set('trust proxy', 1);
 
 app.use(
   cors({
-    origin: clientUrl,
-    credentials: true
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`허용되지 않은 Origin입니다: ${origin}`));
+    },
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
 

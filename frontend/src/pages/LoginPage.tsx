@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { isNativeApp, openExternalAuth } from '../lib/mobile';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+const MOBILE_REDIRECT_URI = 'kendoapp://auth/login/callback';
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -15,6 +17,13 @@ function LoginPage() {
     }
 
     const timer = window.setTimeout(() => {
+      if (isNativeApp()) {
+        void openExternalAuth(
+          `${API_BASE}/auth/google/mobile?redirect_uri=${encodeURIComponent(MOBILE_REDIRECT_URI)}`
+        );
+        return;
+      }
+
       window.location.href = `${API_BASE}/auth/google`;
     }, 120);
 

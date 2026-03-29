@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_BASE, useAuth } from '../lib/auth';
+import { API_BASE, apiFetch, useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
 
 function ProfileSetupPage() {
@@ -20,9 +20,8 @@ function ProfileSetupPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE}/auth/profile-setup`, {
+      const response = await apiFetch(`${API_BASE}/auth/profile-setup`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           studentId,

@@ -1,4 +1,4 @@
-import { API_BASE } from './auth';
+import { API_BASE, apiFetch } from './auth';
 
 export type ClubRole = '일반' | '임원' | '부회장' | '회장' | '관리자';
 export type AppointableClubRole = '일반' | '임원' | '부회장' | '회장';
@@ -84,8 +84,7 @@ export type MoneyBootstrap = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
+  const response = await apiFetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {})

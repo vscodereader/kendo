@@ -47,9 +47,24 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;');
 }
 
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 function NaverMapView({ placeName, address, mapLink }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const openMapLink = () => {
+    if (!mapLink) return;
+
+    if (isMobileDevice()) {
+      window.open(mapLink, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    window.open(mapLink, '_blank', 'noopener,noreferrer');
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -103,11 +118,13 @@ function NaverMapView({ placeName, address, mapLink }: Props) {
             infoWindow.open(map, marker);
           });
 
-          naver.maps.Event.addListener(map, 'dblclick', () => {
-            if (mapLink) {
-              window.open(mapLink, '_blank', 'noopener,noreferrer');
-            }
-          });
+          if (!isMobileDevice()) {
+            naver.maps.Event.addListener(map, 'dblclick', () => {
+              if (mapLink) {
+                window.open(mapLink, '_blank', 'noopener,noreferrer');
+              }
+            });
+          }
 
           setError(null);
         };
@@ -150,7 +167,20 @@ function NaverMapView({ placeName, address, mapLink }: Props) {
 
   return (
     <div className="embedded-map-wrap">
-      {error ? <div className="embedded-map-error">{error}</div> : <div ref={mapRef} className="embedded-map-canvas" />}
+      {error ? (
+        <div className="embedded-map-error">{error}</div>
+      ) : (
+        <>
+          <div ref={mapRef} className="embedded-map-canvas" />
+          {mapLink ? (
+            <div className="embedded-map-actions">
+              <button type="button" className="ghost-btn" onClick={openMapLink}>
+                네이버 지도 열기
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

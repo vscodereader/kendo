@@ -1,12 +1,26 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import PageQuickNav from './PageQuickNav';
+import MobileBackButton from './MobileBackButton';
+import MobileSearchDrawer from './MobileSearchDrawer';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 function SectionLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMobile = useIsMobile();
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  const showFloatingSearch =
+    isMobile &&
+    !['/main', '/select'].includes(location.pathname) &&
+    !location.pathname.startsWith('/login');
 
   return (
     <div className="section-layout-shell">
       <div className="page-top-actions">
+        <MobileBackButton />
+
         <button
           type="button"
           className="ghost-btn page-top-action-btn"
@@ -25,7 +39,27 @@ function SectionLayout() {
       </div>
 
       <PageQuickNav />
-      <Outlet />
+
+      <div className="section-layout-content">
+        <Outlet />
+      </div>
+
+      {showFloatingSearch ? (
+        <button
+          type="button"
+          className="mobile-floating-search-btn"
+          onClick={() => setMobileSearchOpen(true)}
+          aria-label="통합 검색"
+          title="통합 검색"
+        >
+          ✎
+        </button>
+      ) : null}
+
+      <MobileSearchDrawer
+        open={mobileSearchOpen}
+        onClose={() => setMobileSearchOpen(false)}
+      />
     </div>
   );
 }

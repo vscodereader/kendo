@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import passport from '../auth/passport.js';
 import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../auth/requireAuth.js';
+import { attachMobileUser, requireAuth } from '../auth/requireAuth.js';
 import {
   buildActiveClubContext,
   canLead,
@@ -12,11 +12,95 @@ import {
   sanitizeNullableInt,
   sanitizeNullableString
 } from '../lib/club.js';
+import { signMobileLoginCode, signMobileToken, verifyMobileLoginCode } from '../lib/mobileAuth.js';
 
 const router = Router();
 const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
 
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/google/mobile', (req, res, next) => {
+  const redirectUri = String(req.query.redirect_uri || 'kendoapp://auth/login/callback');
+
+  const sessionWithMobile = req.session as typeof req.session & {
+    mobileRedirectUri?: string;
+  };
+
+  sessionWithMobile.mobileRedirectUri = redirectUri;
+  next();
+}, passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  prompt: 'select_account'
+}));
+
+router.post('/mobile/exchange', async (req, res, next) => {
+  try {
+    const { code } = req.body as { code?: string };
+
+    if (!code) {
+      res.status(400).json({ message: 'code가 필요합니다.' });
+      return;
+    }
+
+    const payload = verifyMobileLoginCode(code);
+    if (payload.type !== 'mobile-login-code') {
+      res.status(400).json({ message: '유효하지 않은 로그인 코드입니다.' });
+      return;
+    }
+
+    const context = await buildActiveClubContext(payload.sub);
+    if (!context?.user) {
+      res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+      return;
+    }
+
+    const { user, activeMember } = context;
+    const root = isRootUser(user);
+    const profileCompleted = Boolean(
+      user.studentId &&
+      user.displayName &&
+      user.department &&
+      user.agreedPersonalPolicyAt
+    );
+    const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
+
+    const token = signMobileToken(user.id);
+
+    res.json({
+      authenticated: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        googleName: user.googleName,
+        googleImage: user.googleImage,
+        displayName: root ? 'Admin' : user.displayName,
+        studentId: root ? null : user.studentId,
+        grade: root ? null : user.grade,
+        age: root ? null : user.age,
+        trainingType: root ? '기본' : normalizeTrainingType(user.trainingType),
+        department: root ? null : user.department ?? null,
+        profileCompleted,
+        clubRole,
+        clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
+        activeRosterId: activeMember?.rosterId ?? null,
+        memberId: activeMember?.id ?? null,
+        isRoot: root,
+        systemRole: root ? 'ROOT' : 'USER',
+        permissions: {
+          canManageRoster: root ? true : canManageRoster(clubRole),
+          canManageMoney: root ? true : canManageRoster(clubRole),
+          canLead: root ? true : canLead(clubRole)
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/google', passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  prompt: 'select_account'
+}));
 
 router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', (error: unknown, user: Express.User | false, info?: { message?: string }) => {
@@ -54,6 +138,20 @@ router.get('/google/callback', (req, res, next) => {
             current.agreedPersonalPolicyAt
         );
 
+        const sessionWithMobile = req.session as typeof req.session & {
+          mobileRedirectUri?: string;
+        };
+
+        const mobileRedirectUri = sessionWithMobile.mobileRedirectUri;
+
+        if (mobileRedirectUri) {
+          delete sessionWithMobile.mobileRedirectUri;
+          const nextPath = profileCompleted ? '/main' : '/profile-setup';
+          const code = signMobileLoginCode(current.id, nextPath);
+          res.redirect(`${mobileRedirectUri}?code=${encodeURIComponent(code)}`);
+          return;
+        }
+
         if (!profileCompleted) {
           res.redirect(`${clientUrl}/profile-setup`);
           return;
@@ -69,12 +167,23 @@ router.get('/google/callback', (req, res, next) => {
 
 router.get('/me', async (req, res, next) => {
   try {
-    if (!req.isAuthenticated() || !req.user?.id) {
+    if (!req.user?.id && req.headers.authorization) {
+      await attachMobileUser(req);
+    }
+
+    const authUserId = req.user?.id;
+
+    if (!authUserId && !req.isAuthenticated()) {
       res.json({ authenticated: false, user: null });
       return;
     }
 
-    const context = await buildActiveClubContext(req.user.id);
+    if (!authUserId) {
+      res.json({ authenticated: false, user: null });
+      return;
+    }
+
+    const context = await buildActiveClubContext(authUserId);
     if (!context?.user) {
       res.json({ authenticated: false, user: null });
       return;

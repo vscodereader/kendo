@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import { focusClosestEditable } from '../lib/mobileFocus';
 
 type Props = {
   value: string;
@@ -82,7 +83,7 @@ function RichHtmlEditor({ value, onChange }: Props) {
   };
 
   return (
-    <div className="rich-editor-wrap">
+    <div className="rich-editor-wrap" onTouchEndCapture={focusClosestEditable}>
       <ReactQuill ref={quillRef} theme="snow" value={value} onChange={onChange} modules={modules} formats={formats} />
 
       {imageModalOpen ? (

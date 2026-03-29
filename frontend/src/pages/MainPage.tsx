@@ -6,9 +6,6 @@ import hero1 from '../assets/main-hero-1.png';
 import hero2 from '../assets/main-hero-2.png';
 import hero3 from '../assets/main-hero-3.png';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000/api';
-const GOOGLE_LOGIN_URL = `${API_BASE.replace(/\/api$/, '')}/api/auth/google`;
-
 const BASE_MENU = [
   { label: '동아리 공지', path: '/notice' },
   { label: '동아리 일정', path: '/schedule' },
@@ -71,6 +68,9 @@ function MainPage() {
   const isAnimatingRef = useRef(false);
   const queuedDirectionRef = useRef<-1 | 0 | 1>(0);
   const unlockTimerRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchDeltaYRef = useRef(0);
+  const TOUCH_THRESHOLD = 48;
 
   const canManageExtra = useMemo(() => {
     if (!user) return false;
@@ -185,6 +185,33 @@ function MainPage() {
     queueOrMoveByDirection(direction);
   };
 
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (menuOpen || showLoginConfirm) return;
+    touchStartYRef.current = event.touches[0]?.clientY ?? null;
+    touchDeltaYRef.current = 0;
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (menuOpen || showLoginConfirm) return;
+    if (touchStartYRef.current === null) return;
+
+    touchDeltaYRef.current = (event.touches[0]?.clientY ?? 0) - touchStartYRef.current;
+  };
+
+  const handleTouchEnd = () => {
+    if (menuOpen || showLoginConfirm) return;
+    if (touchStartYRef.current === null) return;
+
+    const delta = touchDeltaYRef.current;
+
+    touchStartYRef.current = null;
+    touchDeltaYRef.current = 0;
+
+    if (Math.abs(delta) < TOUCH_THRESHOLD) return;
+
+    queueOrMoveByDirection(delta < 0 ? 1 : -1);
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (menuOpen || showLoginConfirm) return;
@@ -205,7 +232,7 @@ function MainPage() {
   }, [menuOpen, showLoginConfirm]);
 
   const handleLoginClick = () => {
-    window.location.href = GOOGLE_LOGIN_URL;
+    navigate('/login');
   };
 
   const handleLogoutClick = async () => {
@@ -231,7 +258,13 @@ function MainPage() {
   };
 
   return (
-    <div className="main-fullpage" onWheel={handleWheel}>
+    <div
+      className="main-fullpage"
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <div className="main-fixed-topbar">
         {authenticated ? <div className="main-user-chip">{displayName}</div> : null}
 

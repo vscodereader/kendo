@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import { focusClosestEditable } from '../lib/mobileFocus';
 
 type QuillAttributorClass = {
   whitelist: string[];
@@ -200,7 +201,7 @@ function RichBoardEditor({ value, onChange }: Props) {
   };
 
   return (
-    <div className="rich-board-editor">
+    <div className="rich-board-editor" onTouchEndCapture={focusClosestEditable}>
       <div id="board-editor-toolbar">
         <select className="ql-font" defaultValue="sans">
           <option value="sans">기본</option>
