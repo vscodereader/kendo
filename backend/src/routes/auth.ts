@@ -30,7 +30,8 @@ router.get('/google/mobile', (req, res, next) => {
 
     passport.authenticate('google', {
       scope: ['profile', 'email'],
-      state
+      state,
+      prompt: 'select_account'
     })(req, res, next);
   } catch (error) {
     next(error);
@@ -103,7 +104,10 @@ router.post('/mobile/exchange', async (req, res, next) => {
   }
 });
 
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/google', passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  prompt: 'select_account'
+}));
 
 router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', (error: unknown, user: Express.User | false, info?: { message?: string }) => {
