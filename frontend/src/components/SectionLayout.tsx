@@ -1,9 +1,20 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import PageQuickNav from './PageQuickNav';
 import MobileBackButton from './MobileBackButton';
 import MobileSearchDrawer from './MobileSearchDrawer';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+const MOBILE_SEARCH_PATHS = new Set([
+  '/notice',
+  '/schedule',
+  '/events',
+  '/contact',
+  '/gym',
+  '/moneypaid',
+  '/MT',
+  '/members'
+]);
 
 function SectionLayout() {
   const navigate = useNavigate();
@@ -11,10 +22,10 @@ function SectionLayout() {
   const isMobile = useIsMobile();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
-  const showFloatingSearch =
-    isMobile &&
-    !['/main', '/select'].includes(location.pathname) &&
-    !location.pathname.startsWith('/login');
+  const showFloatingSearch = useMemo(() => {
+    if (!isMobile) return false;
+    return MOBILE_SEARCH_PATHS.has(location.pathname);
+  }, [isMobile, location.pathname]);
 
   return (
     <div className="section-layout-shell">

@@ -8,16 +8,20 @@ import {
 } from '../lib/club';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 function formatDate(value: string) {
   const date = new Date(value);
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(
+    date.getDate()
+  ).padStart(2, '0')}`;
 }
 
 function NoticeListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { pushToast } = useToast();
+  const isMobile = useIsMobile();
 
   const [items, setItems] = useState<NoticeSummary[]>([]);
   const [pinnedItems, setPinnedItems] = useState<NoticeSummary[]>([]);
@@ -39,7 +43,11 @@ function NoticeListPage() {
     return ['임원', '부회장', '회장'].includes(user.clubRole ?? '일반');
   }, [user]);
 
-  const load = async (page: number, nextQuery: string, nextField: 'all' | 'title' | 'body' | 'author') => {
+  const load = async (
+    page: number,
+    nextQuery: string,
+    nextField: 'all' | 'title' | 'body' | 'author'
+  ) => {
     setLoading(true);
     try {
       const result = await fetchNoticePosts({
@@ -55,7 +63,10 @@ function NoticeListPage() {
       setTotalCount(result.totalCount);
       setSelectedIds([]);
     } catch (error) {
-      pushToast(error instanceof Error ? error.message : '공지 목록을 불러오지 못했습니다.', 'error');
+      pushToast(
+        error instanceof Error ? error.message : '공지 목록을 불러오지 못했습니다.',
+        'error'
+      );
     } finally {
       setLoading(false);
     }
@@ -106,7 +117,10 @@ function NoticeListPage() {
       pushToast('고정이 해제되었습니다.', 'success');
       await load(currentPage, query, searchField);
     } catch (error) {
-      pushToast(error instanceof Error ? error.message : '고정 해제에 실패했습니다.', 'error');
+      pushToast(
+        error instanceof Error ? error.message : '고정 해제에 실패했습니다.',
+        'error'
+      );
     } finally {
       setPinning(false);
     }
@@ -120,12 +134,18 @@ function NoticeListPage() {
         <div className="notice-search-card">
           <div className="notice-search-title">검색하기</div>
           <div className="notice-search-controls">
-            <select value={searchField} onChange={(e) => setSearchField(e.target.value as 'all' | 'title' | 'body' | 'author')}>
+            <select
+              value={searchField}
+              onChange={(e) =>
+                setSearchField(e.target.value as 'all' | 'title' | 'body' | 'author')
+              }
+            >
               <option value="title">제목</option>
               <option value="body">본문</option>
               <option value="author">작성자</option>
               <option value="all">전체</option>
             </select>
+
             <input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -134,6 +154,7 @@ function NoticeListPage() {
               }}
               placeholder="검색어를 입력해 주세요."
             />
+
             <button className="ghost-btn" onClick={handleSearch}>
               검색
             </button>
@@ -142,69 +163,135 @@ function NoticeListPage() {
 
         <div className="notice-list-summary">
           <span>{totalCount}건</span>
-          <span>현재페이지: {currentPage}/{totalPages}</span>
+          <span>
+            현재페이지: {currentPage}/{totalPages}
+          </span>
         </div>
 
-        <div className="notice-table-wrap">
-          <table className="notice-table">
-            <thead>
-              <tr>
-                {canWrite ? <th className="notice-check-col"></th> : null}
-                <th className="notice-no-col">NO</th>
-                <th>제목</th>
-                <th className="notice-author-col">작성자</th>
-                <th className="notice-date-col">작성일</th>
-                <th className="notice-view-col">조회수</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={canWrite ? 6 : 5} className="notice-empty-row">
-                    불러오는 중입니다.
-                  </td>
-                </tr>
-              ) : visibleRows.length === 0 ? (
-                <tr>
-                  <td colSpan={canWrite ? 6 : 5} className="notice-empty-row">
-                    등록된 공지가 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                visibleRows.map((item, index) => {
-                  const number =
-                    item.isPinned && currentPage === 1
-                      ? '고정'
-                      : totalCount - (currentPage - 1) * 10 - (index - pinnedItems.length);
+        {isMobile ? (
+          <div className="mobile-board-list">
+            {loading ? (
+              <div className="mobile-board-empty">불러오는 중입니다.</div>
+            ) : visibleRows.length === 0 ? (
+              <div className="mobile-board-empty">등록된 공지가 없습니다.</div>
+            ) : (
+              visibleRows.map((item, index) => {
+                const isPinnedRow = currentPage === 1 && index < pinnedItems.length;
+                const regularIndex = index - pinnedItems.length;
+                const rowNumber = isPinnedRow
+                  ? '고정'
+                  : String(totalCount - ((currentPage - 1) * 10 + regularIndex));
 
-                  return (
-                    <tr key={item.id} className={item.isPinned ? 'notice-row notice-row--pinned' : 'notice-row'}>
+                return (
+                  <div
+                    key={item.id}
+                    className={`mobile-board-card ${item.isPinned ? 'is-pinned' : ''}`}
+                  >
+                    <div className="mobile-board-card__top">
+                      <div className="mobile-board-card__badge">
+                        {item.isPinned ? '📌 고정' : rowNumber}
+                      </div>
+
                       {canWrite ? (
-                        <td className="notice-check-col">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(item.id)}
-                            onChange={() => toggleSelected(item.id)}
-                          />
-                        </td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => toggleSelected(item.id)}
+                          onClick={(event) => event.stopPropagation()}
+                        />
                       ) : null}
-                      <td className="notice-no-col">{number}</td>
-                      <td className="notice-title-cell">
-                        <button className="notice-title-link" onClick={() => navigate(`/notice/${item.id}`)}>
-                          {item.isPinned ? <span className="notice-pin-icon">📌</span> : null}
-                          <span>{item.title}</span>
-                        </button>
-                      </td>
-                      <td className="notice-author-col">{item.authorDisplayName}</td>
-                      <td className="notice-date-col">{formatDate(item.createdAt)}</td>
-                      <td className="notice-view-col">{item.viewCount}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="mobile-board-card__title"
+                      onClick={() => navigate(`/notice/${item.id}`)}
+                    >
+                      {item.title}
+                    </button>
+
+                    <div className="mobile-board-card__meta">
+                      <span>{item.authorDisplayName}</span>
+                      <span>{formatDate(item.createdAt)}</span>
+                      <span>조회 {item.viewCount}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="notice-table-wrap">
+            <table className="notice-table">
+              <thead>
+                <tr>
+                  {canWrite ? <th className="notice-check-col"></th> : null}
+                  <th className="notice-no-col">NO</th>
+                  <th>제목</th>
+                  <th className="notice-author-col">작성자</th>
+                  <th className="notice-date-col">작성일</th>
+                  <th className="notice-view-col">조회수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={canWrite ? 6 : 5} className="notice-empty-row">
+                      불러오는 중입니다.
+                    </td>
+                  </tr>
+                ) : visibleRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={canWrite ? 6 : 5} className="notice-empty-row">
+                      등록된 공지가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRows.map((item, index) => {
+                    const number =
+                      item.isPinned && currentPage === 1
+                        ? '고정'
+                        : totalCount - (currentPage - 1) * 10 - (index - pinnedItems.length);
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className={
+                          item.isPinned ? 'notice-row notice-row--pinned' : 'notice-row'
+                        }
+                      >
+                        {canWrite ? (
+                          <td className="notice-check-col">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(item.id)}
+                              onChange={() => toggleSelected(item.id)}
+                            />
+                          </td>
+                        ) : null}
+                        <td className="notice-no-col">{number}</td>
+                        <td className="notice-title-cell">
+                          <button
+                            className="notice-title-link"
+                            onClick={() => navigate(`/notice/${item.id}`)}
+                          >
+                            {item.isPinned ? (
+                              <span className="notice-pin-icon">📌</span>
+                            ) : null}
+                            <span>{item.title}</span>
+                          </button>
+                        </td>
+                        <td className="notice-author-col">{item.authorDisplayName}</td>
+                        <td className="notice-date-col">{formatDate(item.createdAt)}</td>
+                        <td className="notice-view-col">{item.viewCount}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {canWrite ? (
           <div className="notice-bulk-actions">
@@ -221,11 +308,19 @@ function NoticeListPage() {
         ) : null}
 
         <div className="notice-pagination">
-          <button className="notice-page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>
-            {"<<"}
+          <button
+            className="notice-page-btn"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(1)}
+          >
+            {'<<'}
           </button>
-          <button className="notice-page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>
-            {"<"}
+          <button
+            className="notice-page-btn"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+          >
+            {'<'}
           </button>
 
           {Array.from({ length: totalPages }, (_, index) => index + 1)
@@ -240,11 +335,19 @@ function NoticeListPage() {
               </button>
             ))}
 
-          <button className="notice-page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>
-            {">"}
+          <button
+            className="notice-page-btn"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+          >
+            {'>'}
           </button>
-          <button className="notice-page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>
-            {">>"}
+          <button
+            className="notice-page-btn"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(totalPages)}
+          >
+            {'>>'}
           </button>
         </div>
       </div>

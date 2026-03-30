@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import { useAuth, apiFetch, API_BASE } from '../lib/auth';
 import { useToast } from '../lib/toast';
-import { apiFetch } from '../lib/auth';
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type EventPostSummary = {
   id: string;
@@ -50,6 +48,7 @@ function EventsListPage() {
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -76,7 +75,9 @@ function EventsListPage() {
       search.set('field', field);
       if (query.trim()) search.set('query', query.trim());
 
-      const result = await apiRequest<EventListResponse>(`/club/events/posts?${search.toString()}`);
+      const result = await apiRequest<EventListResponse>(
+        `/club/events/posts?${search.toString()}`
+      );
 
       setItems(result.items ?? []);
       setPinnedItems(result.pinnedItems ?? []);
@@ -194,72 +195,126 @@ function EventsListPage() {
           </span>
         </div>
 
-        <div className="notice-table-wrap">
-          <table className="notice-table">
-            <thead>
-              <tr>
-                {canManage ? <th className="notice-check-col"></th> : null}
-                <th className="notice-no-col">NO</th>
-                <th className="notice-title-cell">제목</th>
-                <th className="notice-author-col">작성자</th>
-                <th className="notice-date-col">작성일</th>
-                <th className="notice-view-col">조회수</th>
-              </tr>
-            </thead>
+        {isMobile ? (
+          <div className="mobile-board-list">
+            {loading ? (
+              <div className="mobile-board-empty">불러오는 중입니다.</div>
+            ) : visibleItems.length === 0 ? (
+              <div className="mobile-board-empty">등록된 게시글이 없습니다.</div>
+            ) : (
+              visibleItems.map((item, index) => {
+                const isPinnedRow = page === 1 && index < pinnedItems.length;
+                const regularIndex = index - pinnedItems.length;
+                const rowNumber = isPinnedRow
+                  ? '고정'
+                  : String(totalCount - ((page - 1) * 10 + regularIndex));
 
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={canManage ? 6 : 5} className="notice-empty-row">
-                    불러오는 중입니다.
-                  </td>
-                </tr>
-              ) : visibleItems.length === 0 ? (
-                <tr>
-                  <td colSpan={canManage ? 6 : 5} className="notice-empty-row">
-                    등록된 게시글이 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                visibleItems.map((item, index) => {
-                  const isPinnedRow = page === 1 && index < pinnedItems.length;
-                  const regularIndex = index - pinnedItems.length;
-                  const rowNumber = totalCount - ((page - 1) * 10 + regularIndex);
+                return (
+                  <div
+                    key={item.id}
+                    className={`mobile-board-card ${item.isPinned ? 'is-pinned' : ''}`}
+                  >
+                    <div className="mobile-board-card__top">
+                      <div className="mobile-board-card__badge">
+                        {item.isPinned ? '📌 고정' : rowNumber}
+                      </div>
 
-                  return (
-                    <tr key={item.id} className={item.isPinned ? 'notice-row--pinned' : ''}>
                       {canManage ? (
-                        <td className="notice-check-col">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(item.id)}
-                            onChange={() => toggleSelected(item.id)}
-                          />
-                        </td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => toggleSelected(item.id)}
+                          onClick={(event) => event.stopPropagation()}
+                        />
                       ) : null}
+                    </div>
 
-                      <td className="notice-no-col">{isPinnedRow ? '📌' : rowNumber}</td>
+                    <button
+                      type="button"
+                      className="mobile-board-card__title"
+                      onClick={() => navigate(`/events/${item.id}`)}
+                    >
+                      {item.title}
+                    </button>
 
-                      <td className="notice-title-cell">
-                        <button
-                          className="notice-title-link"
-                          onClick={() => navigate(`/events/${item.id}`)}
-                        >
-                          {item.isPinned ? <span className="notice-pin-icon">📌</span> : null}
-                          <span>{item.title}</span>
-                        </button>
-                      </td>
+                    <div className="mobile-board-card__meta">
+                      <span>{item.authorDisplayName}</span>
+                      <span>{formatDate(item.createdAt)}</span>
+                      <span>조회 {item.viewCount}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="notice-table-wrap">
+            <table className="notice-table">
+              <thead>
+                <tr>
+                  {canManage ? <th className="notice-check-col"></th> : null}
+                  <th className="notice-no-col">NO</th>
+                  <th className="notice-title-cell">제목</th>
+                  <th className="notice-author-col">작성자</th>
+                  <th className="notice-date-col">작성일</th>
+                  <th className="notice-view-col">조회수</th>
+                </tr>
+              </thead>
 
-                      <td className="notice-author-col">{item.authorDisplayName}</td>
-                      <td className="notice-date-col">{formatDate(item.createdAt)}</td>
-                      <td className="notice-view-col">{item.viewCount}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={canManage ? 6 : 5} className="notice-empty-row">
+                      불러오는 중입니다.
+                    </td>
+                  </tr>
+                ) : visibleItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={canManage ? 6 : 5} className="notice-empty-row">
+                      등록된 게시글이 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleItems.map((item, index) => {
+                    const isPinnedRow = page === 1 && index < pinnedItems.length;
+                    const regularIndex = index - pinnedItems.length;
+                    const rowNumber = totalCount - ((page - 1) * 10 + regularIndex);
+
+                    return (
+                      <tr key={item.id} className={item.isPinned ? 'notice-row--pinned' : ''}>
+                        {canManage ? (
+                          <td className="notice-check-col">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(item.id)}
+                              onChange={() => toggleSelected(item.id)}
+                            />
+                          </td>
+                        ) : null}
+
+                        <td className="notice-no-col">{isPinnedRow ? '📌' : rowNumber}</td>
+
+                        <td className="notice-title-cell">
+                          <button
+                            className="notice-title-link"
+                            onClick={() => navigate(`/events/${item.id}`)}
+                          >
+                            {item.isPinned ? <span className="notice-pin-icon">📌</span> : null}
+                            <span>{item.title}</span>
+                          </button>
+                        </td>
+
+                        <td className="notice-author-col">{item.authorDisplayName}</td>
+                        <td className="notice-date-col">{formatDate(item.createdAt)}</td>
+                        <td className="notice-view-col">{item.viewCount}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {canManage ? (
           <div className="notice-bulk-actions">
@@ -286,9 +341,19 @@ function EventsListPage() {
           >
             {'<'}
           </button>
-          <button className="notice-page-btn notice-page-btn--active" disabled>
-            {page}
-          </button>
+
+          {Array.from({ length: totalPages }, (_, index) => index + 1)
+            .slice(Math.max(0, page - 5), Math.max(0, page - 5) + 10)
+            .map((pageNumber) => (
+              <button
+                key={pageNumber}
+                className={`notice-page-btn ${pageNumber === page ? 'notice-page-btn--active' : ''}`}
+                onClick={() => setPage(pageNumber)}
+              >
+                {pageNumber}
+              </button>
+            ))}
+
           <button
             className="notice-page-btn"
             disabled={page >= totalPages}
