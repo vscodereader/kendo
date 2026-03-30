@@ -1433,6 +1433,15 @@ const noticeUpload = multer({
   }
 });
 
+function toPrismaBytes(buffer: Buffer) {
+  const arrayBuffer = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer;
+
+  return new Uint8Array(arrayBuffer);
+}
+
 function serializeNoticeAttachment(item: {
   id: string;
   fileName: string;
@@ -1668,7 +1677,7 @@ router.post('/notice/posts', requireAuth, noticeUpload.array('attachments', 10),
             fileName: file.originalname,
             mimeType: file.mimetype || 'application/octet-stream',
             fileSize: file.size,
-            data: new Uint8Array(file.buffer)
+            data: toPrismaBytes(file.buffer)
           }))
         }
       },
@@ -1750,7 +1759,7 @@ router.put('/notice/posts/:postId', requireAuth, noticeUpload.array('attachments
           fileName: file.originalname,
           mimeType: file.mimetype || 'application/octet-stream',
           fileSize: file.size,
-          data: new Uint8Array(file.buffer)
+          data: toPrismaBytes(file.buffer)
         }))
       };
     }
@@ -2011,7 +2020,7 @@ router.post('/events/posts', requireAuth, noticeUpload.array('attachments', 10),
             fileName: file.originalname,
             mimeType: file.mimetype || 'application/octet-stream',
             fileSize: file.size,
-            data: new Uint8Array(file.buffer)
+            data: toPrismaBytes(file.buffer)
           }))
         }
       },
@@ -2093,7 +2102,7 @@ router.put('/events/posts/:postId', requireAuth, noticeUpload.array('attachments
           fileName: file.originalname,
           mimeType: file.mimetype || 'application/octet-stream',
           fileSize: file.size,
-          data: new Uint8Array(file.buffer)
+          data: toPrismaBytes(file.buffer)
         }))
       };
     }
