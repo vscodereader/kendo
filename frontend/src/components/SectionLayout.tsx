@@ -63,7 +63,7 @@ function SectionLayout() {
           aria-label="통합 검색"
           title="통합 검색"
         >
-          ✎
+          🔍
         </button>
       ) : null}
 

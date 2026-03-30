@@ -5668,13 +5668,13 @@ textarea::placeholder {
   .page-top-actions {
     position: sticky;
     top: 0;
-    z-index: 50;
+    z-index: 60;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     overflow-x: auto;
-    padding: 8px 0 10px;
+    padding: calc(env(safe-area-inset-top, 0px) + 22px) 0 8px;
     margin-bottom: 8px;
-    background: linear-gradient(180deg, rgba(5, 8, 22, 0.94), rgba(5, 8, 22, 0.78));
+    background: linear-gradient(180deg, rgba(5, 8, 22, 0.98), rgba(5, 8, 22, 0.84));
     backdrop-filter: blur(8px);
     scrollbar-width: none;
   }
@@ -5687,10 +5687,23 @@ textarea::placeholder {
   .mobile-back-btn,
   .page-top-action-btn {
     flex: 0 0 auto;
-    min-height: 40px;
-    padding: 10px 14px;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 10px;
     border-radius: 999px;
     white-space: nowrap;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .mobile-back-btn {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
   }
 
   .mobile-back-btn {
@@ -5701,26 +5714,34 @@ textarea::placeholder {
 
   .page-quicknav-wrap {
     position: sticky;
-    top: 58px;
-    z-index: 45;
-    margin: 8px 0 14px;
+    top: calc(env(safe-area-inset-top, 0px) + 78px);
+    z-index: 55;
+    margin: 6px 0 12px;
   }
 
   .page-quicknav {
     display: flex;
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 6px;
     overflow-x: auto;
     padding-bottom: 4px;
     scrollbar-width: none;
   }
 
   .page-quicknav-item {
-    flex: 0 0 auto;
-    min-width: 124px;
-    padding: 10px 12px;
-    font-size: 13px;
-    white-space: nowrap;
+    flex: 0 0 calc((100vw - 52px) / 4);
+    min-width: 78px;
+    max-width: 96px;
+    min-height: 54px;
+    padding: 7px 6px;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: normal;
+    word-break: keep-all;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .main-fullpage {
@@ -5729,15 +5750,37 @@ textarea::placeholder {
 
   .main-fixed-topbar {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 18px);
-    right: 14px;
-    left: auto;
+    top: calc(env(safe-area-inset-top, 0px) + 44px);
+    right: 12px;
+    left: 12px;
     width: auto;
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     z-index: 70;
+    pointer-events: none;
+  }
+
+  .main-fixed-topbar > * {
+    pointer-events: auto;
+  }
+
+  .main-fixed-topbar .main-user-chip,
+  .main-fixed-topbar .main-topbar-btn {
+    min-height: 34px;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .main-fixed-topbar .main-topbar-btn--icon {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .main-fixed-topbar .main-user-chip,
@@ -5927,7 +5970,7 @@ textarea::placeholder {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 16px 14px;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
