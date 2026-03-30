@@ -7,3 +7,8 @@ backend/prisma/dev.db
 backend/prisma/dev.db-journal
 backend/.env
 .DS_Store
+frontend/.env.local
+frontend/src.zip
+frontend.zip
+backend.zip
+frontend/android/.idea/deploymentTargetSelector.xml
