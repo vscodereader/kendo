@@ -1433,13 +1433,13 @@ const noticeUpload = multer({
   }
 });
 
-function toPrismaBytes(buffer: Buffer) {
+function toPrismaBytes(buffer: Buffer): Uint8Array<ArrayBuffer> {
   const arrayBuffer = buffer.buffer.slice(
     buffer.byteOffset,
     buffer.byteOffset + buffer.byteLength
   ) as ArrayBuffer;
 
-  return new Uint8Array(arrayBuffer);
+  return new Uint8Array(arrayBuffer) as Uint8Array<ArrayBuffer>;
 }
 
 function serializeNoticeAttachment(item: {
@@ -1745,7 +1745,7 @@ router.put('/notice/posts/:postId', requireAuth, noticeUpload.array('attachments
           fileName: string;
           mimeType: string;
           fileSize: number;
-          data: Uint8Array;
+          data: Uint8Array<ArrayBuffer>;
         }>;
       };
     } = {
@@ -2088,7 +2088,7 @@ router.put('/events/posts/:postId', requireAuth, noticeUpload.array('attachments
           fileName: string;
           mimeType: string;
           fileSize: number;
-          data: Uint8Array;
+          data: Uint8Array<ArrayBuffer>;
         }>;
       };
     } = {
