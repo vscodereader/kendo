@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { prisma } from '../lib/prisma.js';
-import { ROOT_ADMIN_EMAIL } from '../lib/club.js';
+import { ROOT_ADMIN_EMAIL, normalizeApprovalStatus } from '../lib/club.js';
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -72,6 +72,8 @@ passport.use(
               googleName,
               googleImage,
               systemRole,
+              approvalStatus: isRoot ? 'APPROVED' : normalizeApprovalStatus(existingByGoogleId.approvalStatus),
+              approvedAt: isRoot ? existingByGoogleId.approvedAt ?? new Date() : existingByGoogleId.approvedAt,
               displayName: isRoot ? 'Admin' : existingByGoogleId.displayName
             }
           });
@@ -92,6 +94,8 @@ passport.use(
               googleName,
               googleImage,
               systemRole,
+              approvalStatus: isRoot ? 'APPROVED' : normalizeApprovalStatus(existingByEmail.approvalStatus),
+              approvedAt: isRoot ? existingByEmail.approvedAt ?? new Date() : existingByEmail.approvedAt,
               displayName: isRoot ? 'Admin' : existingByEmail.displayName
             }
           });
@@ -107,7 +111,9 @@ passport.use(
             googleName,
             googleImage,
             displayName: isRoot ? 'Admin' : null,
-            systemRole
+            systemRole,
+            approvalStatus: isRoot ? 'APPROVED' : 'INCOMPLETE',
+            approvedAt: isRoot ? new Date() : null
           }
         });
 

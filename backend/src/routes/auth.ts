@@ -6,7 +6,9 @@ import {
   buildActiveClubContext,
   canLead,
   canManageRoster,
+  isProfileCompletedUser,
   isRootUser,
+  normalizeApprovalStatus,
   normalizeClubRole,
   normalizeTrainingType,
   sanitizeNullableInt,
@@ -19,9 +21,58 @@ import {
   verifyMobileLoginCode,
   verifyMobileOAuthState
 } from '../lib/mobileAuth.js';
+import { countPendingApprovalApplicants, sendPendingApprovalDigestMail } from '../services/approvalMailer.js';
 
 const router = Router();
 const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
+
+async function buildAuthUserPayload(authUserId: string) {
+  const context = await buildActiveClubContext(authUserId);
+  if (!context?.user) {
+    return null;
+  }
+
+  const { user, activeMember, latestRoster } = context;
+  const root = isRootUser(user);
+  const profileCompleted = isProfileCompletedUser(user);
+  const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
+  const approvalStatus = root ? 'APPROVED' : normalizeApprovalStatus(user.approvalStatus);
+  const canReviewApplicants = root ? true : canManageRoster(clubRole);
+  const approvalQueueCount = canReviewApplicants ? await countPendingApprovalApplicants() : 0;
+  const canAccessClubContent = root || approvalStatus === 'APPROVED' || canReviewApplicants;
+
+  return {
+    id: user.id,
+    email: user.email,
+    googleName: user.googleName,
+    googleImage: user.googleImage,
+    displayName: root ? 'Admin' : user.displayName,
+    studentId: root ? null : user.studentId,
+    grade: root ? null : user.grade,
+    age: root ? null : user.age,
+    trainingType: root ? '기본' : normalizeTrainingType(user.trainingType),
+    department: root ? null : user.department ?? null,
+    profileCompleted,
+    approvalStatus,
+    approvalRequestedAt: user.approvalRequestedAt,
+    approvedAt: user.approvedAt,
+    rejectedAt: user.rejectedAt,
+    canAccessClubContent,
+    approvalQueueCount,
+    clubRole,
+    clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
+    activeRosterId: latestRoster?.id ?? null,
+    memberId: activeMember?.id ?? null,
+    isRoot: root,
+    systemRole: root ? 'ROOT' : 'USER',
+    permissions: {
+      canManageRoster: root ? true : canManageRoster(clubRole),
+      canManageMoney: root ? true : canManageRoster(clubRole),
+      canLead: root ? true : canLead(clubRole),
+      canReviewApplicants
+    }
+  };
+}
 
 router.get('/google/mobile', (req, res, next) => {
   try {
@@ -53,51 +104,18 @@ router.post('/mobile/exchange', async (req, res, next) => {
       return;
     }
 
-    const context = await buildActiveClubContext(payload.sub);
-    if (!context?.user) {
+    const authUser = await buildAuthUserPayload(payload.sub);
+    if (!authUser) {
       res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
       return;
     }
 
-    const { user, activeMember, latestRoster } = context;
-    const root = isRootUser(user);
-    const profileCompleted = Boolean(
-      user.studentId &&
-        user.displayName &&
-        user.department &&
-        user.agreedPersonalPolicyAt
-    );
-    const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
-
-    const token = signMobileToken(user.id);
+    const token = signMobileToken(authUser.id);
 
     res.json({
       authenticated: true,
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        googleName: user.googleName,
-        googleImage: user.googleImage,
-        displayName: root ? 'Admin' : user.displayName,
-        studentId: root ? null : user.studentId,
-        grade: root ? null : user.grade,
-        age: root ? null : user.age,
-        trainingType: root ? '기본' : normalizeTrainingType(user.trainingType),
-        department: root ? null : user.department ?? null,
-        profileCompleted,
-        clubRole,
-        clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
-        activeRosterId: latestRoster?.id ?? null,
-        memberId: activeMember?.id ?? null,
-        isRoot: root,
-        systemRole: root ? 'ROOT' : 'USER',
-        permissions: {
-          canManageRoster: root ? true : canManageRoster(clubRole),
-          canManageMoney: root ? true : canManageRoster(clubRole),
-          canLead: root ? true : canLead(clubRole)
-        }
-      }
+      user: authUser
     });
   } catch (error) {
     next(error);
@@ -138,12 +156,8 @@ router.get('/google/callback', (req, res, next) => {
           return;
         }
 
-        const profileCompleted = Boolean(
-          current.studentId &&
-            current.displayName &&
-            current.department &&
-            current.agreedPersonalPolicyAt
-        );
+        const profileCompleted = isProfileCompletedUser(current);
+        const approvalStatus = isRootUser(current) ? 'APPROVED' : normalizeApprovalStatus(current.approvalStatus);
 
         const rawState = typeof req.query.state === 'string' ? req.query.state : '';
         let mobileRedirectUri: string | null = null;
@@ -159,19 +173,15 @@ router.get('/google/callback', (req, res, next) => {
           }
         }
 
+        const nextPath = !profileCompleted || approvalStatus === 'REJECTED' ? '/profile-setup' : '/main';
+
         if (mobileRedirectUri) {
-          const nextPath = profileCompleted ? '/main' : '/profile-setup';
           const code = signMobileLoginCode(current.id, nextPath);
           res.redirect(`${mobileRedirectUri}?code=${encodeURIComponent(code)}`);
           return;
         }
 
-        if (!profileCompleted) {
-          res.redirect(`${clientUrl}/profile-setup`);
-          return;
-        }
-
-        res.redirect(`${clientUrl}/main`);
+        res.redirect(`${clientUrl}${nextPath}`);
       } catch (callbackError) {
         next(callbackError);
       }
@@ -197,49 +207,13 @@ router.get('/me', async (req, res, next) => {
       return;
     }
 
-    const context = await buildActiveClubContext(authUserId);
-    if (!context?.user) {
+    const authUser = await buildAuthUserPayload(authUserId);
+    if (!authUser) {
       res.json({ authenticated: false, user: null });
       return;
     }
 
-    const { user, activeMember, latestRoster } = context;
-    const root = isRootUser(user);
-    const profileCompleted = Boolean(
-      user.studentId &&
-        user.displayName &&
-        user.department &&
-        user.agreedPersonalPolicyAt
-    );
-    const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
-
-    res.json({
-      authenticated: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        googleName: user.googleName,
-        googleImage: user.googleImage,
-        displayName: root ? 'Admin' : user.displayName,
-        studentId: root ? null : user.studentId,
-        grade: root ? null : user.grade,
-        age: root ? null : user.age,
-        trainingType: root ? '기본' : normalizeTrainingType(user.trainingType),
-        department: root ? null : user.department ?? null,
-        profileCompleted,
-        clubRole,
-        clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
-        activeRosterId: latestRoster?.id ?? null,
-        memberId: activeMember?.id ?? null,
-        isRoot: root,
-        systemRole: root ? 'ROOT' : 'USER',
-        permissions: {
-          canManageRoster: root ? true : canManageRoster(clubRole),
-          canManageMoney: root ? true : canManageRoster(clubRole),
-          canLead: root ? true : canLead(clubRole)
-        }
-      }
-    });
+    res.json({ authenticated: true, user: authUser });
   } catch (error) {
     next(error);
   }
@@ -248,6 +222,11 @@ router.get('/me', async (req, res, next) => {
 router.post('/profile-setup', requireAuth, async (req, res, next) => {
   try {
     const current = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!current) {
+      res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+      return;
+    }
+
     const root = isRootUser(current);
     const { studentId, displayName, agreePersonalPolicy, grade, age, trainingType, department } = req.body as {
       studentId?: string;
@@ -313,6 +292,7 @@ router.post('/profile-setup', requireAuth, async (req, res, next) => {
       return;
     }
 
+    const now = new Date();
     const updated = await prisma.user.update({
       where: { id: req.user!.id },
       data: {
@@ -322,40 +302,27 @@ router.post('/profile-setup', requireAuth, async (req, res, next) => {
         age: normalizedAge,
         trainingType: normalizedTrainingType,
         department: normalizedDepartment,
-        agreedPersonalPolicyAt: new Date()
+        agreedPersonalPolicyAt: now,
+        approvalStatus: root ? 'APPROVED' : 'PENDING',
+        approvalRequestedAt: root ? current.approvalRequestedAt ?? now : now,
+        approvedAt: root ? current.approvedAt ?? now : null,
+        rejectedAt: null
       }
     });
 
-    const context = await buildActiveClubContext(updated.id);
-    const activeMember = context?.activeMember;
-    const clubRole = root ? '관리자' : normalizeClubRole(activeMember?.role ?? '일반');
+    const authUser = await buildAuthUserPayload(updated.id);
+    if (!authUser) {
+      res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+      return;
+    }
 
-    res.json({
-      ok: true,
-      user: {
-        id: updated.id,
-        email: updated.email,
-        googleName: updated.googleName,
-        googleImage: updated.googleImage,
-        displayName: updated.displayName,
-        studentId: updated.studentId,
-        grade: updated.grade,
-        age: updated.age,
-        trainingType: normalizeTrainingType(updated.trainingType),
-        department: updated.department ?? null,
-        profileCompleted: true,
-        clubRole,
-        clubRoleDetail: root ? 'Admin' : activeMember?.roleDetail ?? null,
-        memberId: activeMember?.id ?? null,
-        isRoot: root,
-        systemRole: root ? 'ROOT' : 'USER',
-        permissions: {
-          canManageRoster: root ? true : canManageRoster(clubRole),
-          canManageMoney: root ? true : canManageRoster(clubRole),
-          canLead: root ? true : canLead(clubRole)
-        }
-      }
-    });
+    res.json({ ok: true, user: authUser });
+
+    if (!root) {
+      void sendPendingApprovalDigestMail('immediate').catch((mailError) => {
+        console.error('[approval-mail] 즉시 승인 알림 메일 전송 실패', mailError);
+      });
+    }
   } catch (error) {
     next(error);
   }

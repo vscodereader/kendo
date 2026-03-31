@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../auth/requireAuth.js';
+import { requireApprovedClubAccess, requireAuth } from '../auth/requireAuth.js';
 import {
   buildActiveClubContext,
   canManageRoster,
   ensureLatestMoneySnapshotExists,
+  getLatestRoster,
   isSameIdentity,
   normalizeAppointableRole,
   normalizeClubRole,
@@ -17,8 +18,137 @@ import {
   type ClubRole
 } from '../lib/club.js';
 import multer from 'multer';
+import { listPendingApprovalApplicants } from '../services/approvalMailer.js';
 
 const router = Router();
+
+router.get('/approval/pending', requireAuth, async (req, res, next) => {
+  try {
+    const context = await requireRosterManager(req.user!.id);
+    if (!context.ok) {
+      res.status(context.status).json({ message: context.message });
+      return;
+    }
+
+    const items = await listPendingApprovalApplicants();
+
+    res.json({
+      count: items.length,
+      items
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/approval/decide', requireAuth, async (req, res, next) => {
+  try {
+    const context = await requireRosterManager(req.user!.id);
+    if (!context.ok) {
+      res.status(context.status).json({ message: context.message });
+      return;
+    }
+
+    const { userIds, action } = req.body as {
+      userIds?: string[];
+      action?: 'approve' | 'reject';
+    };
+
+    const normalizedIds = Array.isArray(userIds)
+      ? [...new Set(userIds.map((item) => String(item).trim()).filter(Boolean))]
+      : [];
+
+    if (normalizedIds.length === 0) {
+      res.status(400).json({ message: '선택된 가입 신청자가 없습니다.' });
+      return;
+    }
+
+    if (action !== 'approve' && action !== 'reject') {
+      res.status(400).json({ message: '처리 방식이 올바르지 않습니다.' });
+      return;
+    }
+
+    const pendingUsers = await prisma.user.findMany({
+      where: {
+        id: { in: normalizedIds },
+        approvalStatus: 'PENDING'
+      }
+    });
+
+    if (pendingUsers.length === 0) {
+      const items = await listPendingApprovalApplicants();
+      res.json({ ok: true, processed: 0, count: items.length, items });
+      return;
+    }
+
+    const latestRoster = await getLatestRoster();
+    const now = new Date();
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (action === 'approve') {
+        await tx.user.updateMany({
+          where: {
+            id: { in: pendingUsers.map((item) => item.id) },
+            approvalStatus: 'PENDING'
+          },
+          data: {
+            approvalStatus: 'APPROVED',
+            approvedAt: now,
+            rejectedAt: null
+          }
+        });
+
+        return;
+      }
+
+      await tx.user.updateMany({
+        where: {
+          id: { in: pendingUsers.map((item) => item.id) },
+          approvalStatus: 'PENDING'
+        },
+        data: {
+          approvalStatus: 'REJECTED',
+          rejectedAt: now,
+          approvedAt: null
+        }
+      });
+
+      if (!latestRoster) return;
+
+      const pendingEmails = pendingUsers.map((item) => item.email).filter((item): item is string => Boolean(item));
+      const pendingStudentIds = pendingUsers
+        .map((item) => (item.studentId && /^\d+$/.test(item.studentId) ? Number(item.studentId) : null))
+        .filter((item): item is number => item !== null);
+
+      await tx.clubMember.deleteMany({
+        where: {
+          rosterId: latestRoster.id,
+          isAdmin: false,
+          role: '일반',
+          OR: [
+            { linkedUserId: { in: pendingUsers.map((item) => item.id) } },
+            ...(pendingEmails.length > 0 ? [{ email: { in: pendingEmails } }] : []),
+            ...(pendingStudentIds.length > 0 ? [{ studentId: { in: pendingStudentIds } }] : [])
+          ]
+        }
+      });
+    });
+
+    if (action === 'approve') {
+      await Promise.all(pendingUsers.map((item) => buildActiveClubContext(item.id)));
+    }
+
+    const items = await listPendingApprovalApplicants();
+    res.json({
+      ok: true,
+      processed: pendingUsers.length,
+      count: items.length,
+      items
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/rosters', requireAuth, async (req, res, next) => {
   try {
@@ -203,7 +333,7 @@ router.get('/money-snapshots/:snapshotId', requireAuth, async (req, res, next) =
   }
 });
 
-router.get('/pages/:slug', requireAuth, async (req, res, next) => {
+router.get('/pages/:slug', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const slug = normalizePageSlug(String(req.params.slug));
     if (!slug) {
@@ -577,7 +707,7 @@ router.post('/rosters/save', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/schedule/events', requireAuth, async (req, res, next) => {
+router.get('/schedule/events', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const events = await prisma.clubScheduleEvent.findMany({
       orderBy: [{ startDateKey: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }]
@@ -1546,7 +1676,7 @@ function serializeEventDetail(item: {
   };
 }
 
-router.get('/notice/posts', requireAuth, async (req, res, next) => {
+router.get('/notice/posts', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = 10;
@@ -1597,7 +1727,7 @@ router.get('/notice/posts', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/notice/posts/:postId', requireAuth, async (req, res, next) => {
+router.get('/notice/posts/:postId', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const post = await prisma.clubNoticePost.findUnique({
       where: { id: String(req.params.postId) },
@@ -1836,7 +1966,7 @@ router.post('/notice/posts/unpin', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/notice/attachments/:attachmentId/download', requireAuth, async (req, res, next) => {
+router.get('/notice/attachments/:attachmentId/download', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const attachment = await prisma.clubNoticeAttachment.findUnique({
       where: { id: String(req.params.attachmentId) }
@@ -1889,7 +2019,7 @@ router.delete('/notice/posts/:postId', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/events/posts', requireAuth, async (req, res, next) => {
+router.get('/events/posts', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = 10;
@@ -1940,7 +2070,7 @@ router.get('/events/posts', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/events/posts/:postId', requireAuth, async (req, res, next) => {
+router.get('/events/posts/:postId', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const post = await prisma.clubEventPost.findUnique({
       where: { id: String(req.params.postId) },
@@ -2179,7 +2309,7 @@ router.post('/events/posts/unpin', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/events/attachments/:attachmentId/download', requireAuth, async (req, res, next) => {
+router.get('/events/attachments/:attachmentId/download', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const attachment = await prisma.clubEventAttachment.findUnique({
       where: { id: String(req.params.attachmentId) }
@@ -2232,7 +2362,7 @@ router.delete('/events/posts/:postId', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/contact/posts', requireAuth, async (req, res, next) => {
+router.get('/contact/posts', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
     if (!active || !active.user) {
@@ -2268,7 +2398,7 @@ router.get('/contact/posts', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/contact/posts/:postId', requireAuth, async (req, res, next) => {
+router.get('/contact/posts/:postId', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
     if (!active || !active.user) {
@@ -2305,7 +2435,7 @@ router.get('/contact/posts/:postId', requireAuth, async (req, res, next) => {
   }
 });
 
-router.post('/contact/posts', requireAuth, async (req, res, next) => {
+router.post('/contact/posts', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
     if (!active || !active.user) {
@@ -2356,7 +2486,7 @@ router.post('/contact/posts', requireAuth, async (req, res, next) => {
   }
 });
 
-router.put('/contact/posts/:postId', requireAuth, async (req, res, next) => {
+router.put('/contact/posts/:postId', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
     if (!active || !active.user) {
@@ -2415,7 +2545,7 @@ router.put('/contact/posts/:postId', requireAuth, async (req, res, next) => {
   }
 });
 
-router.delete('/contact/posts/:postId', requireAuth, async (req, res, next) => {
+router.delete('/contact/posts/:postId', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const active = await buildActiveClubContext(req.user!.id);
     if (!active || !active.user) {

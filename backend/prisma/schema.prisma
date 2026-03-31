@@ -21,6 +21,10 @@ model User {
   trainingType           String?
   department             String?
   systemRole             String                @default("USER")
+  approvalStatus         String                @default("APPROVED")
+  approvalRequestedAt    DateTime?
+  approvedAt             DateTime?
+  rejectedAt             DateTime?
   agreedPersonalPolicyAt DateTime?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
@@ -31,7 +35,9 @@ model User {
   createdMemberRosters   MemberRoster[]        @relation("MemberRosterCreatedBy")
   createdMoneySnapshots  MoneyLedgerSnapshot[] @relation("MoneySnapshotCreatedBy")
   bannedAccounts         BannedAccount[]       @relation("BannedByUser")
-  pageContentsUpdated ClubPageContent[] @relation("PageUpdatedBy")
+  pageContentsUpdated    ClubPageContent[]     @relation("PageUpdatedBy")
+
+  @@index([approvalStatus])
 }
 
 model CurriculumSource {

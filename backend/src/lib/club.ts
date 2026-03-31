@@ -1,6 +1,6 @@
 import { prisma } from './prisma.js';
 
-export const ROOT_ADMIN_EMAIL = (process.env.CLUB_CONTACT_EMAIL ?? '').trim().toLowerCase();
+export const ROOT_ADMIN_EMAIL = (process.env.ROOT_ADMIN_EMAIL ?? process.env.CLUB_CONTACT_EMAIL ?? '').trim().toLowerCase();
 export const CLUB_ROLES = ['일반', '임원', '부회장', '회장', '관리자'] as const;
 export const APPOINTABLE_ROLES = ['일반', '임원', '부회장', '회장'] as const;
 export type ClubRole = (typeof CLUB_ROLES)[number];
@@ -9,6 +9,8 @@ export const TRAINING_TYPES = ['기본', '호구'] as const;
 export type TrainingType = (typeof TRAINING_TYPES)[number];
 export const USER_SYSTEM_ROLES = ['USER', 'ROOT'] as const;
 export type UserSystemRole = (typeof USER_SYSTEM_ROLES)[number];
+export const USER_APPROVAL_STATUSES = ['INCOMPLETE', 'PENDING', 'APPROVED', 'REJECTED'] as const;
+export type UserApprovalStatus = (typeof USER_APPROVAL_STATUSES)[number];
 
 export type ActiveClubContext = {
   user: Awaited<ReturnType<typeof prisma.user.findUnique>>;
@@ -62,6 +64,12 @@ export function normalizeSystemRole(value: unknown): UserSystemRole {
   return USER_SYSTEM_ROLES.includes(value as UserSystemRole) ? (value as UserSystemRole) : 'USER';
 }
 
+export function normalizeApprovalStatus(value: unknown): UserApprovalStatus {
+  return USER_APPROVAL_STATUSES.includes(value as UserApprovalStatus)
+    ? (value as UserApprovalStatus)
+    : 'INCOMPLETE';
+}
+
 export function isRootEmail(email: string | null | undefined) {
   return String(email ?? '').trim().toLowerCase() === ROOT_ADMIN_EMAIL;
 }
@@ -71,18 +79,56 @@ export function isRootUser(user: { email?: string | null; systemRole?: string | 
   return normalizeSystemRole(user.systemRole) === 'ROOT' || isRootEmail(user.email);
 }
 
+export function isProfileCompletedUser(
+  user:
+    | {
+        studentId?: string | null;
+        displayName?: string | null;
+        department?: string | null;
+        agreedPersonalPolicyAt?: Date | string | null;
+      }
+    | null
+    | undefined
+) {
+  if (!user) return false;
+
+  return Boolean(
+    user.studentId &&
+      String(user.studentId).trim() &&
+      user.displayName &&
+      String(user.displayName).trim() &&
+      user.department &&
+      String(user.department).trim() &&
+      user.agreedPersonalPolicyAt
+  );
+}
+
+export function isApprovedUser(
+  user: { approvalStatus?: string | null; email?: string | null; systemRole?: string | null } | null | undefined
+) {
+  if (!user) return false;
+  if (isRootUser(user)) return true;
+  return normalizeApprovalStatus(user.approvalStatus) === 'APPROVED';
+}
+
 export async function syncRootSystemRole(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return null;
 
   const shouldBeRoot = isRootEmail(user.email);
   const nextRole: UserSystemRole = shouldBeRoot ? 'ROOT' : 'USER';
-  if (normalizeSystemRole(user.systemRole) === nextRole) return user;
+  const nextApprovalStatus = shouldBeRoot ? 'APPROVED' : user.approvalStatus;
+
+  if (normalizeSystemRole(user.systemRole) === nextRole && user.approvalStatus === nextApprovalStatus) {
+    return user;
+  }
 
   return prisma.user.update({
     where: { id: user.id },
     data: {
       systemRole: nextRole,
+      approvalStatus: nextApprovalStatus,
+      approvedAt: shouldBeRoot && !user.approvedAt ? new Date() : user.approvedAt,
       displayName: shouldBeRoot ? 'Admin' : user.displayName
     }
   });
@@ -98,10 +144,10 @@ export async function getRootAdminUser() {
   const byEmail = await prisma.user.findUnique({ where: { email: ROOT_ADMIN_EMAIL } });
   if (!byEmail) return null;
 
-  if (normalizeSystemRole(byEmail.systemRole) !== 'ROOT') {
+  if (normalizeSystemRole(byEmail.systemRole) !== 'ROOT' || normalizeApprovalStatus(byEmail.approvalStatus) !== 'APPROVED') {
     return prisma.user.update({
       where: { id: byEmail.id },
-      data: { systemRole: 'ROOT', displayName: 'Admin' }
+      data: { systemRole: 'ROOT', approvalStatus: 'APPROVED', approvedAt: byEmail.approvedAt ?? new Date(), displayName: 'Admin' }
     });
   }
 
@@ -236,9 +282,11 @@ export async function buildActiveClubContext(userId: string): Promise<ActiveClub
     }
   });
 
-  const profileCompleted = Boolean(user.studentId && user.displayName && user.agreedPersonalPolicyAt);
+  const profileCompleted = isProfileCompletedUser(user);
+  const approvalStatus = normalizeApprovalStatus(user.approvalStatus);
+  const canJoinActiveRoster = profileCompleted && approvalStatus === 'APPROVED';
 
-  if (!activeMember && profileCompleted) {
+  if (!activeMember && canJoinActiveRoster) {
     activeMember = await prisma.clubMember.create({
       data: {
         rosterId: latestRoster.id,
@@ -258,7 +306,7 @@ export async function buildActiveClubContext(userId: string): Promise<ActiveClub
     });
   }
 
-  if (activeMember && (!activeMember.linkedUserId || activeMember.email !== user.email)) {
+  if (activeMember && canJoinActiveRoster && (!activeMember.linkedUserId || activeMember.email !== user.email)) {
     activeMember = await prisma.clubMember.update({
       where: { id: activeMember.id },
       data: {

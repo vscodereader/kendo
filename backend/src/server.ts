@@ -9,6 +9,7 @@ import apiRouter from './routes/api.js';
 import authRouter from './routes/auth.js';
 import clubRouter from './routes/club.js';
 import passport from './auth/passport.js';
+import { sendPendingApprovalDigestMail } from './services/approvalMailer.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
@@ -21,6 +22,7 @@ const allowedOrigins = new Set([
   'capacitor://localhost'
 ]);
 const sessionSecret = process.env.SESSION_SECRET;
+const approvalReminderSecret = process.env.APPROVAL_REMINDER_SECRET?.trim();
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL 환경변수가 필요합니다.');
@@ -50,7 +52,7 @@ app.use(
       callback(new Error(`허용되지 않은 Origin입니다: ${origin}`));
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Approval-Reminder-Secret']
   })
 );
 
@@ -92,6 +94,29 @@ app.get('/', (_req, res) => {
       legacyCompare: '/api/compare'
     }
   });
+});
+
+app.all('/internal/approval/reminders', async (req, res, next) => {
+  try {
+    if (!approvalReminderSecret) {
+      res.status(500).json({ message: 'APPROVAL_REMINDER_SECRET 환경변수가 설정되지 않았습니다.' });
+      return;
+    }
+
+    const headerSecret = req.header('X-Approval-Reminder-Secret')?.trim();
+    const querySecret = typeof req.query.secret === 'string' ? req.query.secret.trim() : '';
+    const providedSecret = headerSecret || querySecret;
+
+    if (!providedSecret || providedSecret !== approvalReminderSecret) {
+      res.status(403).json({ message: '승인 알림 실행 권한이 없습니다.' });
+      return;
+    }
+
+    const result = await sendPendingApprovalDigestMail('daily-reminder');
+    res.json({ ok: true, result });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use('/api/auth', authRouter);
