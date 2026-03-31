@@ -1,6 +1,6 @@
 import { prisma } from './prisma.js';
 
-export const ROOT_ADMIN_EMAIL = 'choisw0404coconut@gmail.com';
+export const ROOT_ADMIN_EMAIL = (process.env.CLUB_CONTACT_EMAIL ?? '').trim().toLowerCase();
 export const CLUB_ROLES = ['일반', '임원', '부회장', '회장', '관리자'] as const;
 export const APPOINTABLE_ROLES = ['일반', '임원', '부회장', '회장'] as const;
 export type ClubRole = (typeof CLUB_ROLES)[number];
