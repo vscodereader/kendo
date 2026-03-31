@@ -20,6 +20,8 @@ import EventsWritePage from './pages/EventsWritePage';
 import EventsDetailPage from './pages/EventsDetailPage';
 import SectionLayout from './components/SectionLayout';
 import LoginCallbackPage from './pages/LoginCallbackPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import AccountDeletionPage from './pages/AccountDeletionPage';
 
 function App() {
   return (
@@ -30,6 +32,9 @@ function App() {
       <Route path="/login/callback" element={<LoginCallbackPage />} />
       <Route path="/profile-setup" element={<ProfileSetupGuard />} />
       <Route path="/select" element={<SelectGuard />} />
+
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/account-deletion" element={<AccountDeletionPage />} />
 
       <Route element={<ApprovedContentGuard />}>
         <Route element={<SectionLayout />}>
