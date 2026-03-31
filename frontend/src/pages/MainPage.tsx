@@ -465,6 +465,15 @@ function MainPage() {
           }}
         />
       ) : null}
+            <div className="main-footer-links">
+              <button
+                type="button"
+                className="main-footer-link-btn"
+                onClick={() => navigate('/privacy')}
+              >
+                개인정보처리방침 · 계정 삭제 안내
+              </button>
+            </div>
     </div>
   );
 }
