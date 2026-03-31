@@ -27,10 +27,23 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function previewCell(value: string, mobile: boolean) {
+function previewCell(label: string, value: string, mobile: boolean) {
   if (!mobile) return value || '-';
   if (!value) return '-';
-  return value.length > 4 ? `${value.slice(0, 4)}…` : value;
+
+  const limits: Record<string, number> = {
+    학번: 9,
+    이름: 4,
+    학과: 4,
+    학년: 2,
+    나이: 2,
+    교육반: 4,
+    이메일: 8,
+    신청시각: 10
+  };
+
+  const limit = limits[label] ?? 4;
+  return value.length > limit ? `${value.slice(0, limit)}…` : value;
 }
 
 export default function ApprovalQueuePanel({
@@ -170,7 +183,7 @@ export default function ApprovalQueuePanel({
                           }}
                           title={cell.value}
                         >
-                          {previewCell(cell.value, isMobile)}
+                          {previewCell(cell.label, cell.value, isMobile)}
                         </td>
                       ))}
                     </tr>

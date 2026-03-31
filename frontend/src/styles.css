@@ -6211,8 +6211,24 @@ textarea::placeholder {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   text-align: center;
-  color: #fff;
   font-size: 14px;
+}
+
+.approval-queue-table th {
+  color: #fff;
+}
+
+.approval-queue-table tbody td {
+  color: #1d2338;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.approval-queue-table tbody td.approval-queue-cell--tap {
+  cursor: pointer;
+}
+
+.approval-queue-table tbody td.approval-queue-cell--tap:active {
+  background: rgba(94, 108, 241, 0.12);
 }
 
 .approval-queue-table th {
@@ -6315,6 +6331,16 @@ textarea::placeholder {
   .approval-queue-table td {
     padding: 8px 8px;
     font-size: 12px;
+  }
+
+  .approval-queue-table tbody td {
+    font-weight: 700;
+  }
+
+  .approval-queue-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .main-pending-banner {
