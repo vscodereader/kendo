@@ -1,4 +1,4 @@
-import { API_BASE, apiFetch } from './auth';
+import { API_BASE, apiFetch, type ApprovalStatus } from './auth';
 
 export type ClubRole = '일반' | '임원' | '부회장' | '회장' | '관리자';
 export type AppointableClubRole = '일반' | '임원' | '부회장' | '회장';
@@ -83,6 +83,23 @@ export type MoneyBootstrap = {
   snapshot: LoadedMoneySnapshot | null;
 };
 
+export type PendingApprovalApplicant = {
+  id: string;
+  email: string;
+  displayName: string;
+  studentId: string;
+  department: string;
+  grade: number | null;
+  age: number | null;
+  trainingType: TrainingType;
+  requestedAt: string | null;
+};
+
+export type PendingApprovalResponse = {
+  count: number;
+  items: PendingApprovalApplicant[];
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(`${API_BASE}${path}`, {
     headers: {
@@ -140,6 +157,20 @@ export async function fetchMoneySnapshot(id: string) {
 
 export async function saveMoneySnapshot(payload: { baseSnapshotId: string | null; entries: MoneyRow[] }) {
   return request<{ ok: true; snapshot: LoadedMoneySnapshot; summary: MoneySnapshotSummary }>('/club/money-snapshots/save', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchPendingApprovalApplicants() {
+  return request<PendingApprovalResponse>('/club/approval/pending');
+}
+
+export async function decidePendingApprovalApplicants(payload: {
+  userIds: string[];
+  action: 'approve' | 'reject';
+}) {
+  return request<PendingApprovalResponse & { ok: true; processed: number }>('/club/approval/decide', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
@@ -260,13 +291,7 @@ export async function fetchBoardPage(slug: BoardPageSlug) {
 
 export async function saveBoardPage(
   slug: BoardPageSlug,
-  payload: {
-    title: string;
-    bodyHtml: string;
-    placeName: string;
-    address: string;
-    mapLink: string;
-  }
+  payload: { title: string; bodyHtml: string; placeName: string; address: string; mapLink: string }
 ) {
   return request<BoardPageContent>(`/club/pages/${slug}`, {
     method: 'PUT',
@@ -295,6 +320,7 @@ export async function saveScheduleEvents(
     startDate: string;
     endDate: string;
     colorHex: string;
+    sortOrder: number;
   }>
 ) {
   return request<ScheduleEventRecord[]>('/club/schedule/events/save', {
@@ -313,39 +339,73 @@ export type NoticeSummary = {
   isPinned: boolean;
 };
 
-export type NoticeDetail = NoticeSummary & {
-  bodyHtml: string;
+export type NoticeAttachmentSummary = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  downloadUrl: string;
 };
 
-export type NoticeListResponse = {
-  currentPage: number;
-  totalPages: number;
-  totalCount: number;
-  pinnedItems: NoticeSummary[];
-  items: NoticeSummary[];
+export type NoticeDetail = NoticeSummary & {
+  bodyHtml: string;
+  canEdit: boolean;
+  attachments: NoticeAttachmentSummary[];
 };
 
 export async function fetchNoticePosts(params: {
-  page: number;
+  page?: number;
   query?: string;
   field?: 'all' | 'title' | 'body' | 'author';
 }) {
   const search = new URLSearchParams();
-  search.set('page', String(params.page));
+  search.set('page', String(params.page ?? 1));
+  search.set('field', params.field ?? 'all');
   if (params.query?.trim()) search.set('query', params.query.trim());
-  if (params.field) search.set('field', params.field);
-
-  return request<NoticeListResponse>(`/club/notice/posts?${search.toString()}`);
+  return request<{
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    pinnedItems: NoticeSummary[];
+    items: NoticeSummary[];
+  }>(`/club/notice/posts?${search.toString()}`);
 }
 
 export async function fetchNoticePost(postId: string) {
   return request<NoticeDetail>(`/club/notice/posts/${postId}`);
 }
 
-export async function createNoticePost(payload: { title: string; bodyHtml: string }) {
-  return request<NoticeDetail>('/club/notice/posts', {
+export async function createNoticePost(formData: FormData) {
+  const response = await apiFetch(`${API_BASE}/club/notice/posts`, {
     method: 'POST',
-    body: JSON.stringify(payload)
+    body: formData
+  });
+
+  if (!response.ok) {
+    const json = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(json.message ?? '공지 등록에 실패했습니다.');
+  }
+
+  return (await response.json()) as NoticeDetail;
+}
+
+export async function updateNoticePost(postId: string, formData: FormData) {
+  const response = await apiFetch(`${API_BASE}/club/notice/posts/${postId}`, {
+    method: 'PUT',
+    body: formData
+  });
+
+  if (!response.ok) {
+    const json = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(json.message ?? '공지 수정에 실패했습니다.');
+  }
+
+  return (await response.json()) as NoticeDetail;
+}
+
+export async function deleteNoticePost(postId: string) {
+  return request<{ ok: true }>(`/club/notice/posts/${postId}`, {
+    method: 'DELETE'
   });
 }
 
@@ -360,12 +420,6 @@ export async function unpinNoticePosts(postIds: string[]) {
   return request<{ ok: true }>('/club/notice/posts/unpin', {
     method: 'POST',
     body: JSON.stringify({ postIds })
-  });
-}
-
-export async function deleteNoticePost(postId: string) {
-  return request<{ ok: true }>(`/club/notice/posts/${postId}`, {
-    method: 'DELETE'
   });
 }
 
@@ -389,6 +443,9 @@ export type ContactPostDetail = {
   authorDisplayName: string;
   realAuthorName: string;
   canRevealAuthor: boolean;
+  isAuthor?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
   createdAt: string;
   updatedAt: string;
   viewCount: number;
@@ -402,15 +459,14 @@ export type ContactListResponse = {
 };
 
 export async function fetchContactPosts(params: {
-  page: number;
+  page?: number;
   query?: string;
   field?: 'all' | 'title' | 'content';
 }) {
   const search = new URLSearchParams();
-  search.set('page', String(params.page));
+  search.set('page', String(params.page ?? 1));
+  search.set('field', params.field ?? 'all');
   if (params.query?.trim()) search.set('query', params.query.trim());
-  if (params.field) search.set('field', params.field);
-
   return request<ContactListResponse>(`/club/contact/posts?${search.toString()}`);
 }
 
@@ -428,4 +484,38 @@ export async function createContactPost(payload: {
     method: 'POST',
     body: JSON.stringify(payload)
   });
+}
+
+export async function updateContactPost(
+  postId: string,
+  payload: {
+    title: string;
+    bodyHtml: string;
+    isSecret: boolean;
+    isAnonymous: boolean;
+  }
+) {
+  return request<ContactPostDetail>(`/club/contact/posts/${postId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteContactPost(postId: string) {
+  return request<{ ok: true }>(`/club/contact/posts/${postId}`, {
+    method: 'DELETE'
+  });
+}
+
+export function approvalStatusLabel(status: ApprovalStatus) {
+  switch (status) {
+    case 'PENDING':
+      return '승인 대기 중';
+    case 'APPROVED':
+      return '승인됨';
+    case 'REJECTED':
+      return '거절됨';
+    default:
+      return '프로필 입력 필요';
+  }
 }

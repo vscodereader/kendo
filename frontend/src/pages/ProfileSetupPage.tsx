@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE, apiFetch, useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
@@ -7,6 +7,7 @@ function ProfileSetupPage() {
   const navigate = useNavigate();
   const { user, refreshMe } = useAuth();
   const { pushToast } = useToast();
+
   const [studentId, setStudentId] = useState(user?.studentId ?? '');
   const [displayName, setDisplayName] = useState(user?.displayName ?? user?.googleName ?? '');
   const [department, setDepartment] = useState(user?.department ?? '');
@@ -15,6 +16,14 @@ function ProfileSetupPage() {
   const [trainingType, setTrainingType] = useState<'기본' | '호구'>(user?.trainingType ?? '기본');
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const isRetry = user?.approvalStatus === 'REJECTED';
+  const description = useMemo(() => {
+    if (isRetry) {
+      return '가입 신청이 거절되었습니다. 정보를 다시 확인한 뒤 다시 제출해주세요.';
+    }
+    return '최신 명단에 자동으로 합류되도록 기본 정보를 먼저 저장합니다.';
+  }, [isRetry]);
 
   const submit = async () => {
     if (submitting) return;
@@ -40,7 +49,7 @@ function ProfileSetupPage() {
       }
 
       await refreshMe();
-      pushToast('프로필이 저장되었습니다.', 'success');
+      pushToast('가입 신청이 접수되었습니다. 승인 후 이용할 수 있습니다.', 'success');
       navigate('/main', { replace: true });
     } catch (error) {
       pushToast(error instanceof Error ? error.message : '프로필 저장 중 오류가 발생했습니다.', 'error');
@@ -53,8 +62,8 @@ function ProfileSetupPage() {
     <div className="page-shell page-shell--center">
       <div className="simple-card form-card">
         <div className="simple-card-eyebrow">첫 접속 설정</div>
-        <h1>검도부 기본 정보 입력</h1>
-        <p>최신 명단에 자동으로 합류되도록 기본 정보를 먼저 저장합니다.</p>
+        <h1>{isRetry ? '프로필 다시 입력' : '검도부 기본 정보 입력'}</h1>
+        <p>{description}</p>
 
         <label className="form-field">
           <span>학번</span>
@@ -96,7 +105,7 @@ function ProfileSetupPage() {
         </label>
 
         <button className="primary-btn primary-btn--large" onClick={submit} disabled={submitting}>
-          {submitting ? '저장 중...' : '프로필 저장'}
+          {submitting ? '저장 중...' : isRetry ? '다시 신청하기' : '프로필 저장'}
         </button>
       </div>
     </div>

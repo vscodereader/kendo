@@ -1,11 +1,11 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import MainPage from './pages/MainPage';
 import LoginPage from './pages/LoginPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 import SelectPage from './pages/SelectPage';
 import MembersPage from './pages/MembersPage';
 import MoneyPaidPage from './pages/MoneyPaidPage';
-import { useAuth } from './lib/auth';
+import { isApprovedMember, useAuth } from './lib/auth';
 import GymPage from './pages/GymPage';
 import MTPage from './pages/MTPage';
 import SchedulePage from './pages/SchedulePage';
@@ -31,43 +31,45 @@ function App() {
       <Route path="/profile-setup" element={<ProfileSetupGuard />} />
       <Route path="/select" element={<SelectGuard />} />
 
-      <Route element={<SectionLayout />}>
-        <Route path="/members" element={<ManageGuard scope="members" />} />
-        <Route path="/moneypaid" element={<ManageGuard scope="money" />} />
+      <Route element={<ApprovedContentGuard />}>
+        <Route element={<SectionLayout />}>
+          <Route path="/members" element={<ManageGuard scope="members" />} />
+          <Route path="/moneypaid" element={<ManageGuard scope="money" />} />
 
-        <Route path="/gym" element={<GymPage />} />
-        <Route path="/MT" element={<MTPage />} />
+          <Route path="/gym" element={<GymPage />} />
+          <Route path="/MT" element={<MTPage />} />
 
-        <Route
-          path="/notice/:postId/edit"
-          element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />}
-        />
-        <Route path="/notice" element={<NoticeListPage />} />
-        <Route path="/notice/:postId" element={<NoticeDetailPage />} />
-        <Route
-          path="/notice/write"
-          element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />}
-        />
+          <Route
+            path="/notice/:postId/edit"
+            element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />}
+          />
+          <Route path="/notice" element={<NoticeListPage />} />
+          <Route path="/notice/:postId" element={<NoticeDetailPage />} />
+          <Route
+            path="/notice/write"
+            element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />}
+          />
 
-        <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
 
-        <Route path="/events" element={<EventsListPage />} />
-        <Route
-          path="/events/write"
-          element={<ManageGuard scope="members" render={() => <EventsWritePage />} />}
-        />
-        <Route
-          path="/events/:postId/edit"
-          element={<ManageGuard scope="members" render={() => <EventsWritePage />} />}
-        />
-        <Route path="/events/:postId" element={<EventsDetailPage />} />
+          <Route path="/events" element={<EventsListPage />} />
+          <Route
+            path="/events/write"
+            element={<ManageGuard scope="members" render={() => <EventsWritePage />} />}
+          />
+          <Route
+            path="/events/:postId/edit"
+            element={<ManageGuard scope="members" render={() => <EventsWritePage />} />}
+          />
+          <Route path="/events/:postId" element={<EventsDetailPage />} />
 
-        <Route path="/contact" element={<ContactListPage />} />
-        <Route path="/contact/write" element={<ContactWritePage />} />
-        <Route path="/contact/:postId" element={<ContactDetailPage />} />
+          <Route path="/contact" element={<ContactListPage />} />
+          <Route path="/contact/write" element={<ContactWritePage />} />
+          <Route path="/contact/:postId" element={<ContactDetailPage />} />
 
-        <Route path="/dojo" element={<Navigate to="/gym" replace />} />
-        <Route path="/mt-place" element={<Navigate to="/MT" replace />} />
+          <Route path="/dojo" element={<Navigate to="/gym" replace />} />
+          <Route path="/mt-place" element={<Navigate to="/MT" replace />} />
+        </Route>
       </Route>
 
       <Route path="/check" element={<Navigate to="/select" replace />} />
@@ -81,7 +83,7 @@ function ProfileSetupGuard() {
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (user?.profileCompleted || user?.isRoot) {
+  if ((user?.profileCompleted && user?.approvalStatus !== 'REJECTED') || user?.isRoot) {
     return <Navigate to="/main" replace />;
   }
 
@@ -93,9 +95,27 @@ function SelectGuard() {
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (!user?.profileCompleted) return <Navigate to="/profile-setup" replace />;
+  if (!user?.profileCompleted || user.approvalStatus === 'REJECTED') {
+    return <Navigate to="/profile-setup" replace />;
+  }
+  if (!isApprovedMember(user)) return <Navigate to="/main" replace />;
 
   return <SelectPage />;
+}
+
+function ApprovedContentGuard() {
+  const { loading, authenticated, user } = useAuth();
+
+  if (loading) return <PageLoading />;
+  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!user?.profileCompleted || user.approvalStatus === 'REJECTED') {
+    return <Navigate to="/profile-setup" replace />;
+  }
+  if (!isApprovedMember(user)) {
+    return <Navigate to="/main" replace />;
+  }
+
+  return <Outlet />;
 }
 
 function ManageGuard({
@@ -110,7 +130,10 @@ function ManageGuard({
 
   if (loading) return <PageLoading />;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (!user?.profileCompleted) return <Navigate to="/profile-setup" replace />;
+  if (!user?.profileCompleted || user.approvalStatus === 'REJECTED') {
+    return <Navigate to="/profile-setup" replace />;
+  }
+  if (!isApprovedMember(user)) return <Navigate to="/main" replace />;
 
   const allowed = user?.isRoot
     ? true

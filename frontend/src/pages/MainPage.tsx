@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import { isApprovedMember, useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
+import { useIsMobile } from '../hooks/useIsMobile';
+import ApprovalQueuePanel from '../components/ApprovalQueuePanel';
 import hero1 from '../assets/main-hero-1.png';
 import hero2 from '../assets/main-hero-2.png';
 import hero3 from '../assets/main-hero-3.png';
@@ -50,8 +52,10 @@ function clamp(value: number, min: number, max: number) {
 
 function MainPage() {
   const navigate = useNavigate();
-  const { user, authenticated, loading, logout } = useAuth();
+  const { user, authenticated, loading, logout, refreshMe } = useAuth();
   const { pushToast } = useToast();
+  const isMobile = useIsMobile();
+
   useEffect(() => {
     if (loading) return;
     if (authenticated && user && !user.profileCompleted) {
@@ -62,6 +66,9 @@ function MainPage() {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLoginConfirm, setShowLoginConfirm] = useState(false);
+  const [showRejectedModal, setShowRejectedModal] = useState(false);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [approvalQueueCount, setApprovalQueueCount] = useState(user?.approvalQueueCount ?? 0);
 
   const sectionIndexRef = useRef(0);
   const wheelAccumRef = useRef(0);
@@ -78,6 +85,11 @@ function MainPage() {
     return Boolean(user.permissions?.canManageRoster);
   }, [user]);
 
+  const approvalGranted = isApprovedMember(user);
+  const approvalPending = Boolean(authenticated && user?.profileCompleted && user.approvalStatus === 'PENDING');
+  const approvalRejected = Boolean(authenticated && user?.approvalStatus === 'REJECTED');
+  const canReviewApplicants = Boolean(authenticated && user?.permissions.canReviewApplicants);
+
   const menuItems = useMemo(() => {
     return authenticated && canManageExtra ? [...BASE_MENU, ...MANAGER_MENU] : BASE_MENU;
   }, [authenticated, canManageExtra]);
@@ -88,7 +100,21 @@ function MainPage() {
     return user.displayName ?? user.googleName ?? '사용자';
   }, [user]);
 
-  const totalSections = sections.length;
+  useEffect(() => {
+    setApprovalQueueCount(user?.approvalQueueCount ?? 0);
+  }, [user?.approvalQueueCount]);
+
+  useEffect(() => {
+    if (!authenticated || !user) return;
+    if (approvalRejected) {
+      setShowRejectedModal(true);
+      return;
+    }
+
+    if (!isMobile && canReviewApplicants && (user.approvalQueueCount ?? 0) > 0) {
+      setApprovalModalOpen(true);
+    }
+  }, [authenticated, user, approvalRejected, canReviewApplicants, isMobile]);
 
   useEffect(() => {
     sectionIndexRef.current = sectionIndex;
@@ -109,7 +135,7 @@ function MainPage() {
     if (queued === 0) return;
 
     const current = sectionIndexRef.current;
-    const next = clamp(current + queued, 0, totalSections - 1);
+    const next = clamp(current + queued, 0, sections.length - 1);
 
     if (next !== current) {
       moveToSection(next);
@@ -128,7 +154,7 @@ function MainPage() {
   };
 
   const moveToSection = (nextIndex: number) => {
-    const safeIndex = clamp(nextIndex, 0, totalSections - 1);
+    const safeIndex = clamp(nextIndex, 0, sections.length - 1);
     const current = sectionIndexRef.current;
 
     if (safeIndex === current) {
@@ -144,7 +170,7 @@ function MainPage() {
 
   const queueOrMoveByDirection = (direction: -1 | 1) => {
     const current = sectionIndexRef.current;
-    const next = clamp(current + direction, 0, totalSections - 1);
+    const next = clamp(current + direction, 0, sections.length - 1);
 
     if (next === current) {
       wheelAccumRef.current = 0;
@@ -161,12 +187,11 @@ function MainPage() {
   };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (menuOpen || showLoginConfirm) return;
+    if (menuOpen || showLoginConfirm || approvalModalOpen || showRejectedModal) return;
 
     event.preventDefault();
 
     const deltaY = event.deltaY;
-
     if (Math.abs(deltaY) < 2) return;
 
     if (isAnimatingRef.current) {
@@ -175,10 +200,7 @@ function MainPage() {
     }
 
     wheelAccumRef.current += deltaY;
-
-    if (Math.abs(wheelAccumRef.current) < WHEEL_THRESHOLD) {
-      return;
-    }
+    if (Math.abs(wheelAccumRef.current) < WHEEL_THRESHOLD) return;
 
     const direction: -1 | 1 = wheelAccumRef.current > 0 ? 1 : -1;
     wheelAccumRef.current = 0;
@@ -186,35 +208,32 @@ function MainPage() {
   };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (menuOpen || showLoginConfirm) return;
+    if (menuOpen || showLoginConfirm || approvalModalOpen || showRejectedModal) return;
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
     touchDeltaYRef.current = 0;
   };
 
   const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (menuOpen || showLoginConfirm) return;
+    if (menuOpen || showLoginConfirm || approvalModalOpen || showRejectedModal) return;
     if (touchStartYRef.current === null) return;
-
     touchDeltaYRef.current = (event.touches[0]?.clientY ?? 0) - touchStartYRef.current;
   };
 
   const handleTouchEnd = () => {
-    if (menuOpen || showLoginConfirm) return;
+    if (menuOpen || showLoginConfirm || approvalModalOpen || showRejectedModal) return;
     if (touchStartYRef.current === null) return;
 
     const delta = touchDeltaYRef.current;
-
     touchStartYRef.current = null;
     touchDeltaYRef.current = 0;
 
     if (Math.abs(delta) < TOUCH_THRESHOLD) return;
-
     queueOrMoveByDirection(delta < 0 ? 1 : -1);
   };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (menuOpen || showLoginConfirm) return;
+      if (menuOpen || showLoginConfirm || approvalModalOpen || showRejectedModal) return;
 
       if (event.key === 'ArrowDown' || event.key === 'PageDown') {
         event.preventDefault();
@@ -229,7 +248,7 @@ function MainPage() {
 
     window.addEventListener('keydown', handleKeyDown, { passive: false });
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [menuOpen, showLoginConfirm]);
+  }, [menuOpen, showLoginConfirm, approvalModalOpen, showRejectedModal]);
 
   const handleLoginClick = () => {
     navigate('/login');
@@ -254,8 +273,27 @@ function MainPage() {
       return;
     }
 
+    if (approvalRejected) {
+      setShowRejectedModal(true);
+      return;
+    }
+
+    if (!user?.profileCompleted) {
+      navigate('/profile-setup');
+      return;
+    }
+
+    if (!approvalGranted) {
+      pushToast('승인된 동아리원만 확인할 수 있습니다!', 'error');
+      return;
+    }
+
     navigate(path);
   };
+
+  const pendingBannerText = approvalPending
+    ? '승인 대기 중입니다. 승인 전에는 동아리 내부 내용을 확인할 수 없습니다.'
+    : '';
 
   return (
     <div
@@ -288,6 +326,8 @@ function MainPage() {
           <span />
         </button>
       </div>
+
+      {approvalPending ? <div className="main-pending-banner">{pendingBannerText}</div> : null}
 
       <div className="main-side-dots">
         {sections.map((_, index) => (
@@ -380,6 +420,50 @@ function MainPage() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {showRejectedModal ? (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h3>거절되었습니다!</h3>
+            <p>프로필을 다시 입력한 뒤 승인을 기다려주세요.</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={async () => {
+                  setShowRejectedModal(false);
+                  await logout();
+                  navigate('/login', { replace: true });
+                }}
+              >
+                다시 로그인
+              </button>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => {
+                  setShowRejectedModal(false);
+                  navigate('/profile-setup', { replace: true });
+                }}
+              >
+                프로필 다시 입력
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!isMobile && canReviewApplicants ? (
+        <ApprovalQueuePanel
+          open={approvalModalOpen}
+          onClose={() => setApprovalModalOpen(false)}
+          mode="modal"
+          onResolved={(nextCount) => {
+            setApprovalQueueCount(nextCount);
+            void refreshMe();
+          }}
+        />
       ) : null}
     </div>
   );

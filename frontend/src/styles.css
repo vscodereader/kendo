@@ -6153,3 +6153,173 @@ textarea::placeholder {
     height: 18px;
   }
 }
+.main-pending-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 88px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 72;
+  width: min(92vw, 520px);
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(15, 20, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.approval-queue-modal-card {
+  width: min(92vw, 1080px);
+  max-width: 1080px;
+}
+
+.approval-queue-panel__summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.approval-queue-empty {
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.82);
+  text-align: center;
+}
+
+.approval-queue-table-shell {
+  overflow: auto;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.approval-queue-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.approval-queue-table th,
+.approval-queue-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  color: #fff;
+  font-size: 14px;
+}
+
+.approval-queue-table th {
+  position: sticky;
+  top: 0;
+  background: #1f2646;
+  z-index: 1;
+}
+
+.approval-queue-cell {
+  cursor: default;
+}
+
+.approval-queue-cell--tap {
+  cursor: pointer;
+}
+
+.approval-queue-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.approval-side-sheet {
+  width: min(96vw, 620px);
+}
+
+.approval-side-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mobile-approval-queue-btn {
+  position: fixed;
+  right: 18px;
+  bottom: 90px;
+  width: 58px;
+  height: 58px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(68, 73, 92, 0.96);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  z-index: 91;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.mobile-approval-queue-btn__badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 12px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.approval-queue-mobile-note {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+}
+
+.approval-queue-cell-detail {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  word-break: break-word;
+}
+
+.approval-queue-cell-detail strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 820px) {
+  .approval-queue-modal-card {
+    width: min(96vw, 96vw);
+  }
+
+  .approval-queue-table-shell.table-scroll-shell--mobile-compact .approval-queue-table {
+    min-width: 820px;
+    zoom: 0.82;
+  }
+
+  .approval-queue-table th,
+  .approval-queue-table td {
+    padding: 8px 8px;
+    font-size: 12px;
+  }
+
+  .main-pending-banner {
+    top: calc(env(safe-area-inset-top, 0px) + 94px);
+    width: calc(100vw - 24px);
+    font-size: 13px;
+  }
+}

@@ -10,6 +10,7 @@ import {
 import { getMobileToken, isNativeApp, setMobileToken } from './mobile';
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000/api';
+export type ApprovalStatus = 'INCOMPLETE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type AuthUser = {
   id: string;
@@ -23,6 +24,12 @@ export type AuthUser = {
   trainingType: '기본' | '호구';
   department: string | null;
   profileCompleted: boolean;
+  approvalStatus: ApprovalStatus;
+  approvalRequestedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  canAccessClubContent: boolean;
+  approvalQueueCount: number;
   clubRole: '일반' | '임원' | '부회장' | '회장' | '관리자';
   clubRoleDetail: string | null;
   activeRosterId: string | null;
@@ -33,6 +40,7 @@ export type AuthUser = {
     canManageRoster: boolean;
     canManageMoney: boolean;
     canLead: boolean;
+    canReviewApplicants: boolean;
   };
 };
 
@@ -66,6 +74,12 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
     headers,
     credentials: isNativeApp() ? 'omit' : 'include'
   });
+}
+
+export function isApprovedMember(user: AuthUser | null | undefined) {
+  if (!user) return false;
+  if (user.isRoot) return true;
+  return user.approvalStatus === 'APPROVED' || user.permissions.canReviewApplicants;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
