@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+
 import { isApprovedMember, useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
 import { useIsMobile } from '../hooks/useIsMobile';
 import ApprovalQueuePanel from '../components/ApprovalQueuePanel';
+import MainExitDialog from '../components/MainExitDialog';
+
 import hero1 from '../assets/main-hero-1.png';
 import hero2 from '../assets/main-hero-2.png';
 import hero3 from '../assets/main-hero-3.png';
@@ -68,6 +73,7 @@ function MainPage() {
   const [showLoginConfirm, setShowLoginConfirm] = useState(false);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [approvalQueueCount, setApprovalQueueCount] = useState(user?.approvalQueueCount ?? 0);
 
   const sectionIndexRef = useRef(0);
@@ -250,6 +256,51 @@ function MainPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [menuOpen, showLoginConfirm, approvalModalOpen, showRejectedModal]);
 
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+
+    let listener: { remove: () => Promise<void> } | null = null;
+
+    const register = async () => {
+      listener = await CapacitorApp.addListener('backButton', () => {
+        if (menuOpen) {
+          setMenuOpen(false);
+          return;
+        }
+
+        if (showLoginConfirm) {
+          setShowLoginConfirm(false);
+          return;
+        }
+
+        if (showRejectedModal) {
+          setShowRejectedModal(false);
+          return;
+        }
+
+        if (approvalModalOpen) {
+          setApprovalModalOpen(false);
+          return;
+        }
+
+        if (showExitConfirm) {
+          setShowExitConfirm(false);
+          return;
+        }
+
+        setShowExitConfirm(true);
+      });
+    };
+
+    void register();
+
+    return () => {
+      if (listener) {
+        void listener.remove();
+      }
+    };
+  }, [menuOpen, showLoginConfirm, showRejectedModal, approvalModalOpen, showExitConfirm]);
+
   const handleLoginClick = () => {
     navigate('/login');
   };
@@ -263,6 +314,10 @@ function MainPage() {
     } catch (error) {
       pushToast(error instanceof Error ? error.message : '로그아웃에 실패했습니다.', 'error');
     }
+  };
+
+  const handleConfirmExit = async () => {
+    await CapacitorApp.exitApp();
   };
 
   const handleProtectedMenuClick = (path: string) => {
@@ -465,15 +520,26 @@ function MainPage() {
           }}
         />
       ) : null}
-            <div className="main-footer-links">
-              <button
-                type="button"
-                className="main-footer-link-btn"
-                onClick={() => navigate('/privacy')}
-              >
-                개인정보처리방침 · 계정 삭제 안내
-              </button>
-            </div>
+
+      <MainExitDialog
+        open={showExitConfirm}
+        onCancel={() => setShowExitConfirm(false)}
+        onConfirm={() => {
+          void handleConfirmExit();
+        }}
+      />
+
+      <div className="main-footer-links">
+        <button
+          type="button"
+          className="main-footer-link-btn"
+          onClick={() => navigate('/privacy')}
+        >
+          개인정보처리방침 · 계정 삭제 안내
+        </button>
+      </div>
+
+
     </div>
   );
 }

@@ -6673,3 +6673,92 @@ textarea::placeholder {
     font-size: 14px;
   }
 }
+
+.main-exit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background: rgba(0, 0, 0, 0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.main-exit-dialog {
+  width: min(92vw, 360px);
+  border-radius: 24px;
+  padding: 24px 20px 18px;
+  background: linear-gradient(180deg, rgba(11, 17, 36, 0.98), rgba(7, 11, 24, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+
+.main-exit-dialog h3 {
+  margin: 0 0 10px;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.main-exit-dialog p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.main-exit-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.main-exit-btn {
+  min-width: 112px;
+  height: 46px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+}
+
+.main-exit-btn:hover {
+  transform: translateY(-1px);
+}
+
+.main-exit-btn--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.main-exit-btn--primary {
+  border: none;
+  background: linear-gradient(135deg, #5864ff, #7f86ff);
+  color: #ffffff;
+  box-shadow: 0 14px 30px rgba(88, 100, 255, 0.28);
+}
+
+@media (max-width: 820px) {
+  .main-exit-dialog {
+    width: min(92vw, 340px);
+    padding: 22px 18px 16px;
+  }
+
+  .main-exit-dialog h3 {
+    font-size: 22px;
+  }
+
+  .main-exit-actions {
+    flex-direction: row;
+  }
+
+  .main-exit-btn {
+    flex: 1;
+    min-width: 0;
+  }
+}
