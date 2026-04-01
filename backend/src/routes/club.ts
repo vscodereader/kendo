@@ -49,9 +49,10 @@ router.post('/approval/decide', requireAuth, async (req, res, next) => {
       return;
     }
 
-    const { userIds, action } = req.body as {
+    const { userIds, action, roleByUserId } = req.body as {
       userIds?: string[];
       action?: 'approve' | 'reject';
+      roleByUserId?: Record<string, string>;
     };
 
     const normalizedIds = Array.isArray(userIds)
@@ -67,6 +68,10 @@ router.post('/approval/decide', requireAuth, async (req, res, next) => {
       res.status(400).json({ message: '처리 방식이 올바르지 않습니다.' });
       return;
     }
+
+    const normalizedRoleByUserId = Object.fromEntries(
+      normalizedIds.map((userId) => [userId, normalizeAppointableRole(roleByUserId?.[userId])])
+    ) as Record<string, AppointableClubRole>;
 
     const pendingUsers = await prisma.user.findMany({
       where: {
@@ -97,6 +102,77 @@ router.post('/approval/decide', requireAuth, async (req, res, next) => {
             rejectedAt: null
           }
         });
+
+        if (!latestRoster) {
+          return;
+        }
+
+        for (const pendingUser of pendingUsers) {
+          const assignedRole = normalizedRoleByUserId[pendingUser.id] ?? '일반';
+          const normalizedStudentId =
+            pendingUser.studentId && /^\d+$/.test(pendingUser.studentId) ? Number(pendingUser.studentId) : null;
+
+          const existingMember = await tx.clubMember.findFirst({
+            where: {
+              rosterId: latestRoster.id,
+              OR: [
+                { linkedUserId: pendingUser.id },
+                ...(pendingUser.email ? [{ email: pendingUser.email }] : []),
+                ...(normalizedStudentId !== null ? [{ studentId: normalizedStudentId }] : [])
+              ]
+            },
+            orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }]
+          });
+
+          const nextName =
+            pendingUser.displayName?.trim() ||
+            pendingUser.googleName?.trim() ||
+            existingMember?.name ||
+            '이름 미입력';
+
+          const nextDepartment = pendingUser.department?.trim() || existingMember?.department || '';
+          const nextTrainingType = normalizeTrainingType(
+            pendingUser.trainingType || existingMember?.trainingType || '기본'
+          );
+
+          if (existingMember) {
+            await tx.clubMember.update({
+              where: { id: existingMember.id },
+              data: {
+                linkedUserId: pendingUser.id,
+                email: pendingUser.email,
+                year: latestRoster.rosterYear,
+                studentId: normalizedStudentId,
+                grade: pendingUser.grade ?? null,
+                age: pendingUser.age ?? null,
+                name: nextName,
+                trainingType: nextTrainingType,
+                department: nextDepartment,
+                role: assignedRole,
+                roleDetail: null,
+                isAdmin: false
+              }
+            });
+          } else {
+            await tx.clubMember.create({
+              data: {
+                rosterId: latestRoster.id,
+                linkedUserId: pendingUser.id,
+                email: pendingUser.email,
+                year: latestRoster.rosterYear,
+                studentId: normalizedStudentId,
+                grade: pendingUser.grade ?? null,
+                age: pendingUser.age ?? null,
+                name: nextName,
+                trainingType: nextTrainingType,
+                department: nextDepartment,
+                role: assignedRole,
+                roleDetail: null,
+                isAdmin: false
+              }
+            });
+          }
+        }
 
         return;
       }

@@ -93,6 +93,7 @@ export type PendingApprovalApplicant = {
   age: number | null;
   trainingType: TrainingType;
   requestedAt: string | null;
+  assignedRole?: AppointableClubRole | null;
 };
 
 export type PendingApprovalResponse = {
@@ -169,6 +170,7 @@ export async function fetchPendingApprovalApplicants() {
 export async function decidePendingApprovalApplicants(payload: {
   userIds: string[];
   action: 'approve' | 'reject';
+  roleByUserId?: Record<string, AppointableClubRole>;
 }) {
   return request<PendingApprovalResponse & { ok: true; processed: number }>('/club/approval/decide', {
     method: 'POST',

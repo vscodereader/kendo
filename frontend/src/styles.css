@@ -6497,3 +6497,179 @@ textarea::placeholder {
     padding: 8px 12px;
   }
 }
+
+.approval-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 700;
+}
+
+.approval-empty-state {
+  padding: 28px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.82);
+  text-align: center;
+}
+
+.approval-table-wrap {
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.approval-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.approval-table th,
+.approval-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(8, 12, 32, 0.78);
+}
+
+.approval-table th {
+  background: rgba(19, 28, 68, 0.95);
+  font-weight: 800;
+}
+
+.approval-role-select {
+  min-width: 94px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 8px 10px;
+  font-weight: 700;
+}
+
+.approval-cell-button {
+  cursor: pointer;
+}
+
+.approval-mobile-hint {
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+}
+
+.approval-mobile-detail-card {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.approval-mobile-detail-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.62);
+  margin-bottom: 6px;
+}
+
+.approval-mobile-detail-value {
+  color: #fff;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.approval-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.approval-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: #050916;
+  display: flex;
+  flex-direction: column;
+}
+
+.approval-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.approval-sheet-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.approval-sheet-back,
+.approval-sheet-close {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.approval-sheet-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+.approval-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.44);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.approval-modal-card {
+  width: min(1200px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 26px;
+  padding: 22px;
+  background: #050916;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.38);
+}
+
+.approval-modal-card h3 {
+  margin: 0 0 16px;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+@media (max-width: 820px) {
+  .approval-action-row {
+    flex-wrap: wrap;
+  }
+
+  .approval-action-row .ghost-btn,
+  .approval-action-row .primary-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .approval-role-select {
+    min-width: 82px;
+    font-size: 14px;
+  }
+}
