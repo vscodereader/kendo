@@ -74,34 +74,36 @@ function SectionLayout() {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname, canReviewApplicants]);
+  }, [location.pathname, canReviewApplicants, showApprovalFab, pushToast]);
 
   return (
     <div className="section-layout-shell">
-      <div className="page-top-actions">
-        <MobileBackButton />
+      <div className="section-layout-scroll">
+        <div className="page-top-actions">
+          <MobileBackButton />
 
-        <button
-          type="button"
-          className="ghost-btn page-top-action-btn"
-          onClick={() => navigate('/main')}
-        >
-          메인화면
-        </button>
+          <button
+            type="button"
+            className="ghost-btn page-top-action-btn"
+            onClick={() => navigate('/main')}
+          >
+            메인화면
+          </button>
 
-        <button
-          type="button"
-          className="ghost-btn page-top-action-btn"
-          onClick={() => navigate('/select')}
-        >
-          메뉴
-        </button>
-      </div>
+          <button
+            type="button"
+            className="ghost-btn page-top-action-btn"
+            onClick={() => navigate('/select')}
+          >
+            메뉴
+          </button>
+        </div>
 
-      <PageQuickNav />
+        <PageQuickNav />
 
-      <div className="section-layout-content">
-        <Outlet />
+        <div className="section-layout-content">
+          <Outlet />
+        </div>
       </div>
 
       {showApprovalFab ? (
