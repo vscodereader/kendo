@@ -22,6 +22,7 @@ import {
   verifyMobileOAuthState
 } from '../lib/mobileAuth.js';
 import { countPendingApprovalApplicants, sendPendingApprovalDigestMail } from '../services/approvalMailer.js';
+import { registerPushDevice, sendPushNotification } from '../services/pushNotifications.js';
 
 const router = Router();
 const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
@@ -84,6 +85,34 @@ router.get('/google/mobile', (req, res, next) => {
       state,
       prompt: 'select_account'
     })(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/push/register', async (req, res, next) => {
+  try {
+    if (!req.user?.id && req.headers.authorization) {
+      await attachMobileUser(req);
+    }
+
+    const sessionUserId = req.user?.id ?? null;
+    const { installationId, pushToken, platform, appVersion } = req.body as {
+      installationId?: string;
+      pushToken?: string;
+      platform?: string;
+      appVersion?: string;
+    };
+
+    const saved = await registerPushDevice({
+      installationId: String(installationId ?? ''),
+      pushToken: String(pushToken ?? ''),
+      platform: String(platform ?? ''),
+      appVersion: appVersion ?? null,
+      userId: sessionUserId
+    });
+
+    res.json({ ok: true, id: saved.id });
   } catch (error) {
     next(error);
   }
@@ -321,6 +350,14 @@ router.post('/profile-setup', requireAuth, async (req, res, next) => {
     if (!root) {
       void sendPendingApprovalDigestMail('immediate').catch((mailError) => {
         console.error('[approval-mail] 즉시 승인 알림 메일 전송 실패', mailError);
+      });
+
+      void sendPushNotification({
+        audience: 'reviewers',
+        body: `${normalizedDisplayName}님이 가입 대기중이에요!`,
+        targetPath: '/main'
+      }).catch((pushError) => {
+        console.error('[push] 가입 대기 알림 전송 실패', pushError);
       });
     }
   } catch (error) {

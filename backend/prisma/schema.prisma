@@ -36,6 +36,7 @@ model User {
   createdMoneySnapshots  MoneyLedgerSnapshot[] @relation("MoneySnapshotCreatedBy")
   bannedAccounts         BannedAccount[]       @relation("BannedByUser")
   pageContentsUpdated    ClubPageContent[]     @relation("PageUpdatedBy")
+  pushDevices            PushDevice[]
 
   @@index([approvalStatus])
 }
@@ -244,6 +245,25 @@ model MoneyLedgerEntry {
   snapshot       MoneyLedgerSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
   @@index([snapshotId, sortOrder])
+}
+
+model PushDevice {
+  id                   String   @id @default(cuid())
+  installationId       String
+  userId               String?
+  pushToken            String   @unique
+  platform             String
+  appVersion           String?
+  notificationsEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  lastSeenAt           DateTime @default(now())
+
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([installationId])
+  @@index([userId])
+  @@index([notificationsEnabled])
 }
 
 model ClubPageContent {

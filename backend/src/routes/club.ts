@@ -19,6 +19,7 @@ import {
 } from '../lib/club.js';
 import multer from 'multer';
 import { listPendingApprovalApplicants } from '../services/approvalMailer.js';
+import { sendPushNotification } from '../services/pushNotifications.js';
 
 const router = Router();
 
@@ -212,6 +213,17 @@ router.post('/approval/decide', requireAuth, async (req, res, next) => {
 
     if (action === 'approve') {
       await Promise.all(pendingUsers.map((item) => buildActiveClubContext(item.id)));
+
+      for (const pendingUser of pendingUsers) {
+        const joinedName = pendingUser.displayName?.trim() || pendingUser.googleName?.trim() || '새 동아리원';
+        void sendPushNotification({
+          audience: 'managers',
+          body: `${joinedName}님이 새로 가입했어요!`,
+          targetPath: '/members'
+        }).catch((pushError) => {
+          console.error('[push] 신규 가입 알림 전송 실패', pushError);
+        });
+      }
     }
 
     const items = await listPendingApprovalApplicants();
@@ -501,6 +513,16 @@ router.put('/pages/:slug', requireAuth, async (req, res, next) => {
         updatedByUserId: req.user!.id
       }
     });
+
+    if (slug === 'mt') {
+      void sendPushNotification({
+        audience: 'managers',
+        body: '엠티장소에 새로운 내용이 저장되었어요!',
+        targetPath: '/MT'
+      }).catch((pushError) => {
+        console.error('[push] 엠티 장소 알림 전송 실패', pushError);
+      });
+    }
 
     res.json(serializeBoardPage(updated, true));
   } catch (error) {
@@ -879,6 +901,14 @@ router.post('/money-snapshots/save', requireAuth, async (req, res, next) => {
     });
 
     res.json({ ok: true, snapshot: serializeMoneySnapshot(snapshot), summary: toMoneySummary(snapshot) });
+
+    void sendPushNotification({
+      audience: 'managers',
+      body: '예산에 새로운 내용이 저장되었어요!',
+      targetPath: '/moneypaid'
+    }).catch((pushError) => {
+      console.error('[push] 예산 저장 알림 전송 실패', pushError);
+    });
   } catch (error) {
     next(error);
   }
@@ -1895,6 +1925,14 @@ router.post('/notice/posts', requireAuth, noticeUpload.array('attachments', 10),
     });
 
     res.json(serializeNoticeDetail(saved));
+
+    void sendPushNotification({
+      audience: 'all',
+      body: '공지에 새 공지가 올라왔어요!',
+      targetPath: '/notice'
+    }).catch((pushError) => {
+      console.error('[push] 공지 알림 전송 실패', pushError);
+    });
   } catch (error) {
     next(error);
   }
@@ -2238,6 +2276,14 @@ router.post('/events/posts', requireAuth, noticeUpload.array('attachments', 10),
     });
 
     res.json(serializeEventDetail(saved));
+
+    void sendPushNotification({
+      audience: 'all',
+      body: '대회 및 심사일정에 새 공지가 올라왔어요!',
+      targetPath: '/events'
+    }).catch((pushError) => {
+      console.error('[push] 대회 및 심사일정 알림 전송 실패', pushError);
+    });
   } catch (error) {
     next(error);
   }
@@ -2557,6 +2603,14 @@ router.post('/contact/posts', requireApprovedClubAccess, async (req, res, next) 
     });
 
     res.json(serializeContactDetail(active, created));
+
+    void sendPushNotification({
+      audience: 'managers',
+      body: '새로운 문의가 올라왔어요!',
+      targetPath: '/contact'
+    }).catch((pushError) => {
+      console.error('[push] 문의 알림 전송 실패', pushError);
+    });
   } catch (error) {
     next(error);
   }
