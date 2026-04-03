@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { isNativeApp } from '../lib/mobile';
+import { consumePendingNotificationTarget } from '../lib/notifications';
 
 function LoginCallbackPage() {
   const navigate = useNavigate();
@@ -35,7 +36,10 @@ function LoginCallbackPage() {
     }
 
     if (user.profileCompleted) {
-      navigate('/main', { replace: true });
+      void (async () => {
+        const pendingTarget = await consumePendingNotificationTarget();
+        navigate(pendingTarget ?? '/main', { replace: true });
+      })();
       return;
     }
 

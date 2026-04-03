@@ -68,6 +68,17 @@ function MainPage() {
     }
   }, [loading, authenticated, user, navigate]);
 
+  useEffect(() => {
+    const refreshMain = () => {
+      void refreshMe();
+    };
+
+    window.addEventListener('kendo:refresh-main', refreshMain as EventListener);
+    return () => {
+      window.removeEventListener('kendo:refresh-main', refreshMain as EventListener);
+    };
+  }, [refreshMe]);
+
   const [sectionIndex, setSectionIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLoginConfirm, setShowLoginConfirm] = useState(false);

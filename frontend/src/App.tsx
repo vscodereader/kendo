@@ -22,64 +22,56 @@ import SectionLayout from './components/SectionLayout';
 import LoginCallbackPage from './pages/LoginCallbackPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import AccountDeletionPage from './pages/AccountDeletionPage';
+import MobileRuntimeBridge from './components/MobileRuntimeBridge';
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/main" replace />} />
-      <Route path="/main" element={<MainPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/callback" element={<LoginCallbackPage />} />
-      <Route path="/profile-setup" element={<ProfileSetupGuard />} />
-      <Route path="/select" element={<SelectGuard />} />
+    <>
+      <MobileRuntimeBridge />
+      <Routes>
+        <Route path="/" element={<Navigate to="/main" replace />} />
+        <Route path="/main" element={<MainPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/callback" element={<LoginCallbackPage />} />
+        <Route path="/profile-setup" element={<ProfileSetupGuard />} />
+        <Route path="/select" element={<SelectGuard />} />
 
-      <Route path="/privacy" element={<PrivacyPolicyPage />} />
-      <Route path="/account-deletion" element={<AccountDeletionPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/account-deletion" element={<AccountDeletionPage />} />
 
-      <Route element={<ApprovedContentGuard />}>
-        <Route element={<SectionLayout />}>
-          <Route path="/members" element={<ManageGuard scope="members" />} />
-          <Route path="/moneypaid" element={<ManageGuard scope="money" />} />
+        <Route element={<ApprovedContentGuard />}>
+          <Route element={<SectionLayout />}>
+            <Route path="/members" element={<ManageGuard scope="members" />} />
+            <Route path="/moneypaid" element={<ManageGuard scope="money" />} />
 
-          <Route path="/gym" element={<GymPage />} />
-          <Route path="/MT" element={<MTPage />} />
+            <Route path="/gym" element={<GymPage />} />
+            <Route path="/MT" element={<MTPage />} />
 
-          <Route
-            path="/notice/:postId/edit"
-            element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />}
-          />
-          <Route path="/notice" element={<NoticeListPage />} />
-          <Route path="/notice/:postId" element={<NoticeDetailPage />} />
-          <Route
-            path="/notice/write"
-            element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />}
-          />
+            <Route path="/notice/:postId/edit" element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />} />
+            <Route path="/notice" element={<NoticeListPage />} />
+            <Route path="/notice/:postId" element={<NoticeDetailPage />} />
+            <Route path="/notice/write" element={<ManageGuard scope="members" render={() => <NoticeWritePage />} />} />
 
-          <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
 
-          <Route path="/events" element={<EventsListPage />} />
-          <Route
-            path="/events/write"
-            element={<ManageGuard scope="members" render={() => <EventsWritePage />} />}
-          />
-          <Route
-            path="/events/:postId/edit"
-            element={<ManageGuard scope="members" render={() => <EventsWritePage />} />}
-          />
-          <Route path="/events/:postId" element={<EventsDetailPage />} />
+            <Route path="/events" element={<EventsListPage />} />
+            <Route path="/events/write" element={<ManageGuard scope="members" render={() => <EventsWritePage />} />} />
+            <Route path="/events/:postId/edit" element={<ManageGuard scope="members" render={() => <EventsWritePage />} />} />
+            <Route path="/events/:postId" element={<EventsDetailPage />} />
 
-          <Route path="/contact" element={<ContactListPage />} />
-          <Route path="/contact/write" element={<ContactWritePage />} />
-          <Route path="/contact/:postId" element={<ContactDetailPage />} />
+            <Route path="/contact" element={<ContactListPage />} />
+            <Route path="/contact/write" element={<ContactWritePage />} />
+            <Route path="/contact/:postId" element={<ContactDetailPage />} />
 
-          <Route path="/dojo" element={<Navigate to="/gym" replace />} />
-          <Route path="/mt-place" element={<Navigate to="/MT" replace />} />
+            <Route path="/dojo" element={<Navigate to="/gym" replace />} />
+            <Route path="/mt-place" element={<Navigate to="/MT" replace />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route path="/check" element={<Navigate to="/select" replace />} />
-      <Route path="*" element={<Navigate to="/main" replace />} />
-    </Routes>
+        <Route path="/check" element={<Navigate to="/select" replace />} />
+        <Route path="*" element={<Navigate to="/main" replace />} />
+      </Routes>
+    </>
   );
 }
 
@@ -123,13 +115,7 @@ function ApprovedContentGuard() {
   return <Outlet />;
 }
 
-function ManageGuard({
-  scope,
-  render
-}: {
-  scope: 'members' | 'money';
-  render?: () => JSX.Element;
-}) {
+function ManageGuard({ scope, render }: { scope: 'members' | 'money'; render?: () => JSX.Element }) {
   const { loading, authenticated, user } = useAuth();
   const location = useLocation();
 
@@ -140,11 +126,7 @@ function ManageGuard({
   }
   if (!isApprovedMember(user)) return <Navigate to="/main" replace />;
 
-  const allowed = user?.isRoot
-    ? true
-    : scope === 'money'
-      ? Boolean(user?.permissions.canManageMoney)
-      : Boolean(user?.permissions.canManageRoster);
+  const allowed = user?.isRoot ? true : scope === 'money' ? Boolean(user?.permissions.canManageMoney) : Boolean(user?.permissions.canManageRoster);
 
   if (!allowed) {
     return <Navigate to={`/select?denied=${encodeURIComponent(location.pathname)}`} replace />;
