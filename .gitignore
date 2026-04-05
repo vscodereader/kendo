@@ -14,3 +14,4 @@ backend.zip
 frontend/android/.idea/deploymentTargetSelector.xml
 frontend/android/.idea/
 backend/.env
+google-services.json

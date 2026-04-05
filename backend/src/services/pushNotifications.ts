@@ -104,11 +104,22 @@ async function getManagerUserIds() {
 }
 
 export async function registerPushDevice(input: RegisterPushDeviceInput) {
+  
+  console.log('[registerPushDevice] raw input =', input);
+
   const installationId = String(input.installationId || '').trim();
   const pushToken = String(input.pushToken || '').trim();
   const platform = String(input.platform || '').trim();
   const appVersion = input.appVersion?.trim() || null;
   const userId = input.userId?.trim() || null;
+
+  console.log('[registerPushDevice] normalized =', {
+    installationId,
+    pushTokenLength: pushToken.length,
+    platform,
+    appVersion,
+    userId
+  });
 
   if (!installationId || !pushToken || !platform) {
     throw new Error('푸시 등록 정보가 올바르지 않습니다.');
@@ -123,7 +134,9 @@ export async function registerPushDevice(input: RegisterPushDeviceInput) {
     data: { notificationsEnabled: false }
   });
 
-  return prisma.pushDevice.upsert({
+  console.log('[registerPushDevice] before upsert');
+  
+  const saved = await prisma.pushDevice.upsert({
     where: { pushToken },
     update: {
       installationId,
@@ -142,7 +155,11 @@ export async function registerPushDevice(input: RegisterPushDeviceInput) {
       notificationsEnabled: true
     }
   });
-}
+
+  console.log('[registerPushDevice] saved =', saved);
+
+  return saved;
+  }
 
 async function getAudienceDevices(audience: PushAudience) {
   if (audience === 'all') {

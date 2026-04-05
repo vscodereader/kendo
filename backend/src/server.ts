@@ -123,8 +123,15 @@ app.use('/api/auth', authRouter);
 app.use('/api/club', clubRouter);
 app.use('/api', apiRouter);
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[error-handler]', {
+    method: req.method,
+    url: req.originalUrl,
+    body: req.body,
+    message: err instanceof Error ? err.message : err,
+    stack: err instanceof Error ? err.stack : null
+  });
+
   const message = err instanceof Error ? err.message : '서버 오류가 발생했습니다.';
   res.status(500).json({ message });
 });

@@ -92,6 +92,10 @@ router.get('/google/mobile', (req, res, next) => {
 
 router.post('/push/register', async (req, res, next) => {
   try {
+    console.log('[push/register] hit');
+    console.log('[push/register] authorization =', req.headers.authorization ? 'exists' : 'none');
+    console.log('[push/register] body =', req.body);
+    console.log('[push/register] req.user?.id =', req.user?.id ?? null);
     if (!req.user?.id && req.headers.authorization) {
       await attachMobileUser(req);
     }
