@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { PushNotifications, type Token, type ActionPerformed } from '@capacitor/push-notifications';
+import {
+  PushNotifications,
+  type Token,
+  type ActionPerformed,
+  type PushNotificationSchema
+} from '@capacitor/push-notifications';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import {
@@ -78,9 +83,9 @@ function MobileRuntimeBridge() {
     let registrationListener: { remove: () => Promise<void> } | null = null;
     let registrationErrorListener: { remove: () => Promise<void> } | null = null;
     let actionListener: { remove: () => Promise<void> } | null = null;
+    let receivedListener: { remove: () => Promise<void> } | null = null;
 
-    const handleAction = async (event: ActionPerformed) => {
-      const targetPath = normalizeTargetPath(event.notification.data?.targetPath);
+    const openTargetPath = async (targetPath: TargetPath) => {
       const state = latestAuthRef.current;
 
       if (state.authenticated && state.profileCompleted) {
@@ -98,6 +103,23 @@ function MobileRuntimeBridge() {
 
       await rememberPendingNotificationTarget(targetPath);
       navigate('/login?notification=1', { replace: true });
+    };
+
+    const handleAction = async (event: ActionPerformed) => {
+      const targetPath = normalizeTargetPath(event.notification.data?.targetPath);
+      await openTargetPath(targetPath);
+    };
+
+    const handleForegroundReceive = async (notification: PushNotificationSchema) => {
+      const body = String(notification.body ?? '').trim();
+      const targetPath = normalizeTargetPath(notification.data?.targetPath);
+
+      if (!body) return;
+
+      const shouldMove = window.confirm(`${body}\n\n확인을 누르면 해당 페이지로 이동합니다.`);
+      if (!shouldMove) return;
+
+      await openTargetPath(targetPath);
     };
 
     const setup = async () => {
@@ -119,6 +141,13 @@ function MobileRuntimeBridge() {
         'pushNotificationActionPerformed',
         (event: ActionPerformed) => {
           void handleAction(event);
+        }
+      );
+
+      receivedListener = await PushNotifications.addListener(
+        'pushNotificationReceived',
+        (notification: PushNotificationSchema) => {
+          void handleForegroundReceive(notification);
         }
       );
 
@@ -148,6 +177,7 @@ function MobileRuntimeBridge() {
       void registrationListener?.remove();
       void registrationErrorListener?.remove();
       void actionListener?.remove();
+      void receivedListener?.remove();
     };
   }, [navigate]);
 
