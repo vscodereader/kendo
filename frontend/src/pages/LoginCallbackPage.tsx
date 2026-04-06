@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { isNativeApp } from '../lib/mobile';
 import { consumePendingNotificationTarget } from '../lib/notifications';
 
 function LoginCallbackPage() {
@@ -11,12 +10,9 @@ function LoginCallbackPage() {
 
   useEffect(() => {
     const run = async () => {
-      if (isNativeApp()) {
-        const code = params.get('code');
-        if (!code) {
-          navigate('/login', { replace: true });
-          return;
-        }
+      const code = params.get('code');
+
+      if (code) {
         await mobileLoginByCode(code);
         return;
       }
@@ -25,7 +21,7 @@ function LoginCallbackPage() {
     };
 
     void run();
-  }, [params, refreshMe, mobileLoginByCode, navigate]);
+  }, [params, refreshMe, mobileLoginByCode]);
 
   useEffect(() => {
     if (loading) return;
@@ -49,6 +45,7 @@ function LoginCallbackPage() {
   return (
     <div className="oauth-loading-page">
       <div className="oauth-loading-card">
+        <div className="oauth-loading-spinner" />
         <h1>로딩중입니다</h1>
         <p>로그인 정보를 확인하고 있어요.</p>
       </div>

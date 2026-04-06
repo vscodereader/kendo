@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { isNativeApp, openExternalAuth } from '../lib/mobile';
+import {
+  getCodeExchangeRedirectUri,
+  isNativeApp,
+  openExternalAuth,
+  shouldUseCodeExchangeLogin,
+} from '../lib/mobile';
 
 const RAW_API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -9,7 +14,6 @@ const RAW_API_BASE =
   'https://kendo-gohi.onrender.com/api';
 
 const API_BASE = RAW_API_BASE.replace(/\/$/, '');
-const MOBILE_REDIRECT_URI = 'kendoapp://auth/login/callback';
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -22,10 +26,18 @@ function LoginPage() {
     }
 
     const timer = window.setTimeout(() => {
-      if (isNativeApp()) {
-        void openExternalAuth(
-          `${API_BASE}/auth/google/mobile?redirect_uri=${encodeURIComponent(MOBILE_REDIRECT_URI)}`
-        );
+      if (shouldUseCodeExchangeLogin()) {
+        const redirectUri = getCodeExchangeRedirectUri();
+        const authUrl = `${API_BASE}/auth/google/mobile?redirect_uri=${encodeURIComponent(
+          redirectUri
+        )}`;
+
+        if (isNativeApp()) {
+          void openExternalAuth(authUrl);
+          return;
+        }
+
+        window.location.href = authUrl;
         return;
       }
 

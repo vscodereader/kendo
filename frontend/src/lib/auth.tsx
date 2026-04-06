@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import { getMobileToken, isNativeApp, setMobileToken } from './mobile';
+import { getMobileToken, setMobileToken, shouldUseCodeExchangeLogin } from './mobile';
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000/api';
 export type ApprovalStatus = 'INCOMPLETE' | 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -72,7 +72,7 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
   return fetch(input, {
     ...init,
     headers,
-    credentials: isNativeApp() ? 'omit' : 'include'
+    credentials: shouldUseCodeExchangeLogin() ? 'omit' : 'include',
   });
 }
 
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       if (!response.ok || !json.token || !json.user) {
-        throw new Error(json.message ?? '모바일 로그인에 실패했습니다.');
+        throw new Error(json.message ?? '로그인에 실패했습니다.');
       }
 
       await setMobileToken(json.token);
@@ -136,16 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    if (isNativeApp()) {
-      await setMobileToken(null);
-      setUser(null);
-      return;
-    }
+    await setMobileToken(null);
 
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include'
-    });
+    if (!shouldUseCodeExchangeLogin()) {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      }).catch(() => undefined);
+    }
 
     setUser(null);
   }, []);
