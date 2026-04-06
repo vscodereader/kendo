@@ -20,8 +20,20 @@ export function isStandaloneWebApp() {
   return navigatorStandalone || displayModeStandalone;
 }
 
+export function isAppleMobileWeb() {
+  if (typeof window === 'undefined' || isNativeApp()) return false;
+
+  const ua = navigator.userAgent;
+  const platform = navigator.platform;
+
+  return (
+    /iPhone|iPad|iPod/i.test(ua) ||
+    (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
 export function shouldUseCodeExchangeLogin() {
-  return isNativeApp() || isStandaloneWebApp();
+  return isNativeApp() || isStandaloneWebApp() || isAppleMobileWeb();
 }
 
 export function getCodeExchangeRedirectUri() {
