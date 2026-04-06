@@ -112,26 +112,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/auth/mobile/exchange`, {
+      console.log('[mobileLoginByCode] start');
+      console.log('[mobileLoginByCode] API_BASE =', API_BASE);
+      console.log('[mobileLoginByCode] code length =', code.length);
+
+      const url = `${API_BASE}/auth/mobile/exchange`;
+      console.log('[mobileLoginByCode] fetch url =', url);
+
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
       });
 
-      const json = (await response.json().catch(() => ({}))) as {
-        token?: string;
-        user?: AuthUser | null;
-        message?: string;
-      };
+      console.log('[mobileLoginByCode] response status =', response.status);
+
+      const text = await response.text();
+      console.log('[mobileLoginByCode] raw response text =', text);
+
+      let json: { token?: string; user?: AuthUser | null; message?: string } = {};
+      try {
+        json = JSON.parse(text);
+      } catch (parseError) {
+        console.log('[mobileLoginByCode] json parse error =', parseError);
+      }
+
+      console.log('[mobileLoginByCode] parsed json =', json);
 
       if (!response.ok || !json.token || !json.user) {
         throw new Error(json.message ?? '로그인에 실패했습니다.');
       }
 
       await setMobileToken(json.token);
+      console.log('[mobileLoginByCode] token saved');
+
       setUser(json.user);
+      console.log('[mobileLoginByCode] user set');
+    } catch (error) {
+      console.log(
+        '[mobileLoginByCode] caught error =',
+        error instanceof Error ? error.message : String(error)
+      );
+      throw error;
     } finally {
       setLoading(false);
+      console.log('[mobileLoginByCode] end');
     }
   }, []);
 
