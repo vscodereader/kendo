@@ -3,10 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { consumePendingNotificationTarget } from '../lib/notifications';
 
+type CallbackPhase = 'idle' | 'running' | 'done' | 'error';
+
 function LoginCallbackPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { refreshMe, mobileLoginByCode, user, loading } = useAuth();
+
+  const [phase, setPhase] = useState<CallbackPhase>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [debug, setDebug] = useState<string[]>([]);
 
   const pushDebug = (message: string) => {
@@ -15,48 +20,62 @@ function LoginCallbackPage() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const run = async () => {
       const code = params.get('code');
+
+      setPhase('running');
+      setErrorMessage(null);
 
       pushDebug(`pathname=${window.location.pathname}`);
       pushDebug(`search=${window.location.search}`);
       pushDebug(`hasCode=${Boolean(code)}`);
 
-      if (code) {
-        pushDebug('before mobileLoginByCode');
-        try {
+      try {
+        if (code) {
+          pushDebug('before mobileLoginByCode');
           await mobileLoginByCode(code);
           pushDebug('mobileLoginByCode success');
-        } catch (error) {
-          pushDebug(
-            `mobileLoginByCode error=${error instanceof Error ? error.message : String(error)}`
-          );
+        } else {
+          pushDebug('no code -> refreshMe');
+          await refreshMe();
+          pushDebug('refreshMe success');
         }
-        return;
-      }
 
-      pushDebug('no code -> refreshMe');
-      try {
-        await refreshMe();
-        pushDebug('refreshMe success');
+        if (!cancelled) {
+          setPhase('done');
+        }
       } catch (error) {
-        pushDebug(
-          `refreshMe error=${error instanceof Error ? error.message : String(error)}`
-        );
+        const message =
+          error instanceof Error ? error.message : '로그인 처리 중 오류가 발생했습니다.';
+
+        pushDebug(`callback error=${message}`);
+
+        if (!cancelled) {
+          setErrorMessage(message);
+          setPhase('error');
+        }
       }
     };
 
     void run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [params, refreshMe, mobileLoginByCode]);
 
   useEffect(() => {
+    pushDebug(`phase=${phase}`);
     pushDebug(`loading=${loading}`);
     pushDebug(`user=${user ? 'exists' : 'null'}`);
 
+    if (phase !== 'done') return;
     if (loading) return;
 
     if (!user) {
-      pushDebug('navigate -> /login');
+      pushDebug('phase done but user is null -> /login');
       navigate('/login', { replace: true });
       return;
     }
@@ -64,15 +83,16 @@ function LoginCallbackPage() {
     if (user.profileCompleted) {
       void (async () => {
         const pendingTarget = await consumePendingNotificationTarget();
-        pushDebug(`navigate -> ${pendingTarget ?? '/main'}`);
-        navigate(pendingTarget ?? '/main', { replace: true });
+        const nextPath = pendingTarget ?? '/main';
+        pushDebug(`navigate -> ${nextPath}`);
+        navigate(nextPath, { replace: true });
       })();
       return;
     }
 
     pushDebug('navigate -> /profile-setup');
     navigate('/profile-setup', { replace: true });
-  }, [loading, user, navigate]);
+  }, [phase, loading, user, navigate]);
 
   return (
     <div className="oauth-loading-page">
@@ -80,6 +100,12 @@ function LoginCallbackPage() {
         <div className="oauth-loading-spinner" />
         <h1>로딩중입니다</h1>
         <p>로그인 정보를 확인하고 있어요.</p>
+
+        {phase === 'error' ? (
+          <p style={{ marginTop: 12, color: '#f87171', fontWeight: 600 }}>
+            {errorMessage ?? '로그인 처리 중 오류가 발생했습니다.'}
+          </p>
+        ) : null}
 
         <div
           style={{
