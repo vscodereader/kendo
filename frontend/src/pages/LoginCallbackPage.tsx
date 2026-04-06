@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { consumePendingNotificationTarget } from '../lib/notifications';
@@ -14,10 +14,10 @@ function LoginCallbackPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [debug, setDebug] = useState<string[]>([]);
 
-  const pushDebug = (message: string) => {
+  const pushDebug = useCallback((message: string) => {
     setDebug((prev) => [...prev, message]);
     console.log('[login-callback]', message);
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +64,7 @@ function LoginCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [params, refreshMe, mobileLoginByCode]);
+  }, [params, refreshMe, mobileLoginByCode, pushDebug]);
 
   useEffect(() => {
     pushDebug(`phase=${phase}`);
@@ -92,7 +92,7 @@ function LoginCallbackPage() {
 
     pushDebug('navigate -> /profile-setup');
     navigate('/profile-setup', { replace: true });
-  }, [phase, loading, user, navigate]);
+  }, [phase, loading, user, navigate, pushDebug]);
 
   return (
     <div className="oauth-loading-page">

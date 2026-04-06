@@ -5,11 +5,12 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ReactNode
+  type ReactNode,
 } from 'react';
 import { getMobileToken, setMobileToken, shouldUseCodeExchangeLogin } from './mobile';
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000/api';
+
 export type ApprovalStatus = 'INCOMPLETE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type AuthUser = {
@@ -79,6 +80,7 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
 export function isApprovedMember(user: AuthUser | null | undefined) {
   if (!user) return false;
   if (user.isRoot) return true;
+
   return user.approvalStatus === 'APPROVED' || user.permissions.canReviewApplicants;
 }
 
@@ -133,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[mobileLoginByCode] raw response text =', text);
 
       let json: { token?: string; user?: AuthUser | null; message?: string } = {};
+
       try {
         json = JSON.parse(text);
       } catch (parseError) {
@@ -179,14 +182,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshMe();
   }, [refreshMe]);
 
-  const value = useMemo(
+  const value = useMemo<AuthContextValue>(
     () => ({
       loading,
       authenticated: Boolean(user),
       user,
       refreshMe,
       logout,
-      mobileLoginByCode
+      mobileLoginByCode,
     }),
     [loading, user, refreshMe, logout, mobileLoginByCode]
   );
