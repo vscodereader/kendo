@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>오프라인 상태</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #111827;
+        color: #f9fafb;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        padding: 24px;
+        box-sizing: border-box;
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 24px;
+      }
+
+      p {
+        margin: 0 0 18px;
+        line-height: 1.6;
+        color: #d1d5db;
+      }
+
+      a {
+        display: inline-block;
+        padding: 12px 16px;
+        border-radius: 12px;
+        background: #2563eb;
+        color: white;
+        text-decoration: none;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>오프라인 상태입니다</h1>
+      <p>
+        인터넷 연결을 확인한 뒤 다시 시도해주세요.
+        <br />
+        앱은 다시 연결되면 정상적으로 동작합니다.
+      </p>
+      <a href="/main">메인으로 이동</a>
+    </main>
+  </body>
+</html>
