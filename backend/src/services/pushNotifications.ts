@@ -1,11 +1,20 @@
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging, type Messaging, type MulticastMessage } from 'firebase-admin/messaging';
+
 import { prisma } from '../lib/prisma.js';
 
 const APP_TITLE = '가천대 검도부';
-const MANAGER_ROLES = ['임원', '부회장', '회장'];
+const MANAGER_ROLES = ['임원', '부회장', '회장'] as const;
 
-export type PushTargetPath = '/main' | '/notice' | '/events' | '/contact' | '/moneypaid' | '/MT' | '/members';
+export type PushTargetPath =
+  | '/main'
+  | '/notice'
+  | '/events'
+  | '/contact'
+  | '/moneypaid'
+  | '/MT'
+  | '/members';
+
 export type PushAudience = 'all' | 'managers' | 'reviewers';
 
 export type RegisterPushDeviceInput = {
@@ -22,25 +31,23 @@ export type SendPushInput = {
   targetPath: PushTargetPath;
 };
 
-function readFirebaseServiceAccount() {
+type FirebaseServiceAccount = {
+  project_id: string;
+  client_email: string;
+  private_key: string;
+};
+
+function readFirebaseServiceAccount(): FirebaseServiceAccount | null {
   const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
   const rawBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64?.trim();
 
   try {
     if (rawJson) {
-      return JSON.parse(rawJson) as {
-        project_id: string;
-        client_email: string;
-        private_key: string;
-      };
+      return JSON.parse(rawJson) as FirebaseServiceAccount;
     }
 
     if (rawBase64) {
-      return JSON.parse(Buffer.from(rawBase64, 'base64').toString('utf8')) as {
-        project_id: string;
-        client_email: string;
-        private_key: string;
-      };
+      return JSON.parse(Buffer.from(rawBase64, 'base64').toString('utf8')) as FirebaseServiceAccount;
     }
   } catch (error) {
     console.error('[push] Firebase 서비스 계정 파싱 실패', error);
@@ -51,6 +58,7 @@ function readFirebaseServiceAccount() {
 
 function getMessagingOrNull(): Messaging | null {
   const serviceAccount = readFirebaseServiceAccount();
+
   if (!serviceAccount) return null;
 
   if (getApps().length === 0) {
@@ -58,8 +66,8 @@ function getMessagingOrNull(): Messaging | null {
       credential: cert({
         projectId: serviceAccount.project_id,
         clientEmail: serviceAccount.client_email,
-        privateKey: serviceAccount.private_key.replace(/\n/g, '\n')
-      })
+        privateKey: serviceAccount.private_key.replace(/\\n/g, '\n'),
+      }),
     });
   }
 
@@ -68,9 +76,11 @@ function getMessagingOrNull(): Messaging | null {
 
 function chunk<T>(items: T[], size: number) {
   const chunks: T[][] = [];
+
   for (let index = 0; index < items.length; index += size) {
     chunks.push(items.slice(index, index + size));
   }
+
   return chunks;
 }
 
@@ -82,29 +92,34 @@ async function getManagerUserIds() {
       members: {
         where: {
           linkedUserId: { not: null },
-          OR: [{ isAdmin: true }, { role: { in: MANAGER_ROLES } }]
+          OR: [{ isAdmin: true }, { role: { in: [...MANAGER_ROLES] } }],
         },
-        select: { linkedUserId: true }
-      }
-    }
+        select: { linkedUserId: true },
+      },
+    },
   });
 
   const ids = new Set<string>();
+
   for (const member of activeRoster?.members ?? []) {
-    if (member.linkedUserId) ids.add(member.linkedUserId);
+    if (member.linkedUserId) {
+      ids.add(member.linkedUserId);
+    }
   }
 
   const roots = await prisma.user.findMany({
     where: { systemRole: 'ROOT' },
-    select: { id: true }
+    select: { id: true },
   });
 
-  for (const root of roots) ids.add(root.id);
+  for (const root of roots) {
+    ids.add(root.id);
+  }
+
   return [...ids];
 }
 
 export async function registerPushDevice(input: RegisterPushDeviceInput) {
-  
   console.log('[registerPushDevice] raw input =', input);
 
   const installationId = String(input.installationId || '').trim();
@@ -118,7 +133,7 @@ export async function registerPushDevice(input: RegisterPushDeviceInput) {
     pushTokenLength: pushToken.length,
     platform,
     appVersion,
-    userId
+    userId,
   });
 
   if (!installationId || !pushToken || !platform) {
@@ -129,13 +144,11 @@ export async function registerPushDevice(input: RegisterPushDeviceInput) {
     where: {
       installationId,
       platform,
-      pushToken: { not: pushToken }
+      pushToken: { not: pushToken },
     },
-    data: { notificationsEnabled: false }
+    data: { notificationsEnabled: false },
   });
 
-  console.log('[registerPushDevice] before upsert');
-  
   const saved = await prisma.pushDevice.upsert({
     where: { pushToken },
     update: {
@@ -144,7 +157,7 @@ export async function registerPushDevice(input: RegisterPushDeviceInput) {
       platform,
       appVersion,
       notificationsEnabled: true,
-      lastSeenAt: new Date()
+      lastSeenAt: new Date(),
     },
     create: {
       installationId,
@@ -152,72 +165,64 @@ export async function registerPushDevice(input: RegisterPushDeviceInput) {
       pushToken,
       platform,
       appVersion,
-      notificationsEnabled: true
-    }
+      notificationsEnabled: true,
+    },
   });
 
   console.log('[registerPushDevice] saved =', saved);
 
   return saved;
-  }
+}
 
 async function getAudienceDevices(audience: PushAudience) {
   if (audience === 'all') {
     return prisma.pushDevice.findMany({
       where: { notificationsEnabled: true },
-      orderBy: [{ updatedAt: 'desc' }]
+      orderBy: [{ updatedAt: 'desc' }],
     });
   }
 
   const managerUserIds = await getManagerUserIds();
-  if (managerUserIds.length === 0) return [];
+
+  if (managerUserIds.length === 0) {
+    return [];
+  }
 
   return prisma.pushDevice.findMany({
     where: {
       notificationsEnabled: true,
-      userId: { in: managerUserIds }
+      userId: { in: managerUserIds },
     },
-    orderBy: [{ updatedAt: 'desc' }]
+    orderBy: [{ updatedAt: 'desc' }],
   });
 }
 
 async function disableInvalidTokens(tokens: string[]) {
   if (tokens.length === 0) return;
+
   await prisma.pushDevice.updateMany({
-    where: { pushToken: { in: tokens } },
-    data: { notificationsEnabled: false }
+    where: {
+      pushToken: { in: tokens },
+    },
+    data: {
+      notificationsEnabled: false,
+    },
   });
 }
 
-export async function sendPushNotification(input: SendPushInput) {
-  const messaging = getMessagingOrNull();
-  if (!messaging) {
-    return { ok: false as const, skipped: 'firebase-not-configured' as const };
-  }
-
-  const devices = await getAudienceDevices(input.audience);
-  const tokens = [...new Set(devices.map((item) => item.pushToken).filter(Boolean))];
-  if (tokens.length === 0) {
-    return { ok: true as const, delivered: 0, failed: 0 };
-  }
-
+async function sendInChunks(
+  messaging: Messaging,
+  tokens: string[],
+  payloadBase: Omit<MulticastMessage, 'tokens'>,
+  invalidTokens: Set<string>
+) {
   let delivered = 0;
   let failed = 0;
-  const invalidTokens = new Set<string>();
-
-  const payloadBase: Omit<MulticastMessage, 'tokens'> = {
-    notification: { title: APP_TITLE, body: input.body },
-    data: { targetPath: input.targetPath },
-    android: {
-      priority: 'high',
-      notification: { channelId: 'club-updates' }
-    }
-  };
 
   for (const tokenChunk of chunk(tokens, 500)) {
     const response = await messaging.sendEachForMulticast({
       ...payloadBase,
-      tokens: tokenChunk
+      tokens: tokenChunk,
     });
 
     delivered += response.successCount;
@@ -225,13 +230,110 @@ export async function sendPushNotification(input: SendPushInput) {
 
     response.responses.forEach((item, index) => {
       const code = item.error?.code;
-      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+
+      if (
+        code === 'messaging/registration-token-not-registered' ||
+        code === 'messaging/invalid-registration-token'
+      ) {
         invalidTokens.add(tokenChunk[index]);
       }
     });
   }
 
+  return { delivered, failed };
+}
+
+export async function sendPushNotification(input: SendPushInput) {
+  const messaging = getMessagingOrNull();
+
+  if (!messaging) {
+    return { ok: false as const, skipped: 'firebase-not-configured' as const };
+  }
+
+  const devices = await getAudienceDevices(input.audience);
+
+  const nativeTokens = [
+    ...new Set(
+      devices
+        .filter((item) => item.platform !== 'web')
+        .map((item) => item.pushToken)
+        .filter(Boolean)
+    ),
+  ];
+
+  const webTokens = [
+    ...new Set(
+      devices
+        .filter((item) => item.platform === 'web')
+        .map((item) => item.pushToken)
+        .filter(Boolean)
+    ),
+  ];
+
+  if (nativeTokens.length === 0 && webTokens.length === 0) {
+    return { ok: true as const, delivered: 0, failed: 0 };
+  }
+
+  const invalidTokens = new Set<string>();
+  let delivered = 0;
+  let failed = 0;
+
+  if (nativeTokens.length > 0) {
+    const nativeResult = await sendInChunks(
+      messaging,
+      nativeTokens,
+      {
+        notification: {
+          title: APP_TITLE,
+          body: input.body,
+        },
+        data: {
+          title: APP_TITLE,
+          body: input.body,
+          targetPath: input.targetPath,
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'club-updates',
+          },
+        },
+      },
+      invalidTokens
+    );
+
+    delivered += nativeResult.delivered;
+    failed += nativeResult.failed;
+  }
+
+  if (webTokens.length > 0) {
+    const webResult = await sendInChunks(
+      messaging,
+      webTokens,
+      {
+        data: {
+          title: APP_TITLE,
+          body: input.body,
+          targetPath: input.targetPath,
+        },
+        webpush: {
+          headers: {
+            Urgency: 'high',
+          },
+        },
+      },
+      invalidTokens
+    );
+
+    delivered += webResult.delivered;
+    failed += webResult.failed;
+  }
+
   await disableInvalidTokens([...invalidTokens]);
 
-  return { ok: true as const, delivered, failed };
+  return {
+    ok: true as const,
+    delivered,
+    failed,
+  };
 }

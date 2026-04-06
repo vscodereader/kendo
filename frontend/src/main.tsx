@@ -6,8 +6,9 @@ import { Browser } from '@capacitor/browser';
 
 import App from './App';
 import { AuthProvider } from './lib/auth';
-import { ToastProvider } from './lib/toast';
 import { isNativeApp } from './lib/mobile';
+import { ToastProvider } from './lib/toast';
+import { ensurePushServiceWorkerRegistration } from './lib/webPush';
 import './styles.css';
 
 function handleIncomingUrl(urlString?: string | null) {
@@ -37,7 +38,7 @@ async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js');
+    const registration = await ensurePushServiceWorkerRegistration();
 
     window.addEventListener('load', () => {
       void registration.update();

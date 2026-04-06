@@ -23,11 +23,13 @@ import LoginCallbackPage from './pages/LoginCallbackPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import AccountDeletionPage from './pages/AccountDeletionPage';
 import MobileRuntimeBridge from './components/MobileRuntimeBridge';
+import WebPushBridge from './components/WebPushBridge';
 
 function App() {
   return (
     <>
       <MobileRuntimeBridge />
+      <WebPushBridge />
       <Routes>
         <Route path="/" element={<Navigate to="/main" replace />} />
         <Route path="/main" element={<MainPage />} />
