@@ -129,20 +129,19 @@ async function scrapeCafe24Shop(
       const $ = cheerio.load(html);
 
       // Cafe24 일반적인 상품 리스트 패턴
-      $('ul.prdList li, .item_box, table.MK_product_list tr, .mun_box li, .item_photo_box').each((_, el) => {
+      $('.xans-product-listnormal li, ul.prdList li, .item_box, table.MK_product_list tr, .mun_box li, .item_photo_box').each((_, el) => {
         const $el = $(el);
 
         // 상품명
-        const name = ($el.find('.name a, .prd_name a, .item_name a, .item_tit_box a, .pname a').first().text()
+        const rawName = ($el.find('.name a, .name span, .prd_name a, .item_name a, .item_tit_box a, .pname a').first().text()
           ?? $el.find('a[href*="product_detail"]').first().text()
           ?? '').trim();
-
+        const name = rawName.replace(/^상품명\s*:\s*/, '').trim();
         if (!name) return;
-
         // 가격
-        const priceText = $el.find('.price .sell span, .price .org_price, .price .item_price, .sale_price, .price_org, .item_money_box .item_money').first().text()
-          ?? $el.find('.price').first().text()
-          ?? '';
+        const specText = $el.find('.spec, .mun, p.price, .xans-product-listitem-price').first().text() ?? '';
+        const priceMatch = specText.match(/판매가\s*:\s*([\d,]+)/);
+        const priceText = priceMatch ? priceMatch[1] : ($el.find('.price .sell span, .price .org_price, .sale_price, .price_org').first().text() ?? $el.find('.price').first().text() ?? '');
         const price = parsePrice(priceText);
         if (!price) return;
 
@@ -208,13 +207,16 @@ function getKumdomallUrls(): Array<{ url: string; category: string; subcategory:
 }
 
 function getWoochangUrls(): Array<{ url: string; category: string; subcategory: string | null }> {
-  // 우창스포츠는 UTF-8 기반
   return [
-    { url: 'https://woochangsports.net/product/list.html?cate_no=24', category: '호구', subcategory: null },
-    { url: 'https://woochangsports.net/product/list.html?cate_no=25', category: '죽도&목검', subcategory: null },
-    { url: 'https://woochangsports.net/product/list.html?cate_no=26', category: '도복', subcategory: null },
-    { url: 'https://woochangsports.net/product/list.html?cate_no=27', category: '죽도집&가방류', subcategory: null },
-    { url: 'https://woochangsports.net/product/list.html?cate_no=28', category: '보호대', subcategory: null },
+    { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC/25/', category: '호구', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EB%8F%84%EB%B3%B5/26/', category: '도복', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84/27/', category: '죽도&목검', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80%EA%B0%80%EA%B2%80/28/', category: '죽도&목검', subcategory: '목검' },
+    { url: 'https://woochangsports.net/category/%EC%BD%94%EB%93%B1%EC%9D%B4%EB%B0%9B%EC%B9%A8/29/', category: '코등이/받침', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EA%B0%80%EB%B0%A9/30/', category: '죽도집&가방류', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EB%A9%B4%EC%88%98%EA%B1%B4/31/', category: '면수건', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EB%B3%B4%ED%98%B8%EB%8C%80/32/', category: '보호대', subcategory: null },
+    { url: 'https://woochangsports.net/category/%EC%95%A1%EC%84%B8%EC%84%9C%EB%A6%AC/134/', category: '액세서리', subcategory: null },
   ];
 }
 
