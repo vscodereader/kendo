@@ -56,7 +56,9 @@ type ClassifyResult = { category: string; subcategory: string | null };
 
 function classifyByKeyword(name: string, defaultCat: string, defaultSub: string | null): ClassifyResult {
   const n = name.toLowerCase().replace(/\s+/g, '');
-
+  if (/(열쇠고리|키링|키홀더|끈|수리|마스크|주머니|제습|탈취|방향)/.test(n) && !/(호구세트|호구셋)/.test(n)) {
+    return { category: '액세서리', subcategory: null };
+  }
   // ── 상의/하의 우선 체크 (도복 관련) ──
   if (/상의/.test(name) && !/(호구|죽도|가검|목검|보호)/.test(name)) {
     return { category: '도복', subcategory: '도복상의' };

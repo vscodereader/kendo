@@ -71,8 +71,14 @@ function ShopPage() {
   );
 
   useEffect(() => {
+    const nextParams = new URLSearchParams();
+    if (appliedQuery) nextParams.set('query', appliedQuery);
+    if (selectedCategory) nextParams.set('category', selectedCategory);
+    if (selectedSubcategory) nextParams.set('subcategory', selectedSubcategory);
+    if (page > 1) nextParams.set('page', String(page));
+    setParams(nextParams, { replace: true });
     void loadProducts(page, appliedQuery, selectedCategory, selectedSubcategory);
-  }, [page, appliedQuery, selectedCategory, selectedSubcategory, loadProducts]);
+  }, [page, appliedQuery, selectedCategory, selectedSubcategory]);
 
   // ── Handlers ──
   const handleSearch = (query?: string) => {
@@ -368,7 +374,7 @@ function ProductCard({ product, onClick }: { product: ShopProductSummary; onClic
           <div className="shop-product-card__orig">{formatKRW(product.originalPrice)}</div>
         )}
         <div className="shop-product-card__price">
-          {product.lowestPrice ? formatKRW(product.lowestPrice) : '가격 정보 없음'}
+          {product.lowestPrice && product.lowestPrice > 0 ? formatKRW(product.lowestPrice) : '가격문의'}
         </div>
         {product.shippingFee !== null && product.shippingFee > 0 && (
           <div className="shop-product-card__shipping">배송비 {formatKRW(product.shippingFee)}</div>
@@ -399,7 +405,7 @@ function MobileProductCard({ product, onClick }: { product: ShopProductSummary; 
           <div className="shop-mobile-product-card__orig">{formatKRW(product.originalPrice)}</div>
         )}
         <div className="shop-mobile-product-card__price">
-          {product.lowestPrice ? formatKRW(product.lowestPrice) : '가격 정보 없음'}
+          {product.lowestPrice && product.lowestPrice > 0 ? formatKRW(product.lowestPrice) : '가격문의'}
         </div>
         {product.shippingFee !== null && product.shippingFee > 0 && (
           <div className="shop-mobile-product-card__shipping">배송비 {formatKRW(product.shippingFee)}</div>
