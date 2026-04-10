@@ -8,6 +8,7 @@ import pg from 'pg';
 import apiRouter from './routes/api.js';
 import authRouter from './routes/auth.js';
 import clubRouter from './routes/club.js';
+import shopRouter from './routes/shop.js';
 import passport from './auth/passport.js';
 import { sendPendingApprovalDigestMail } from './services/approvalMailer.js';
 
@@ -121,6 +122,7 @@ app.all('/internal/approval/reminders', async (req, res, next) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/club', clubRouter);
+app.use('/api/club/shop', shopRouter);
 app.use('/api', apiRouter);
 
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {

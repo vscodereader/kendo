@@ -23,6 +23,8 @@ import LoginCallbackPage from './pages/LoginCallbackPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import AccountDeletionPage from './pages/AccountDeletionPage';
 import MobileRuntimeBridge from './components/MobileRuntimeBridge';
+import ShopPage from './pages/ShopPage';
+import ShopProductDetailPage from './pages/ShopProductDetailPage';
 import WebPushBridge from './components/WebPushBridge';
 
 function App() {
@@ -65,6 +67,8 @@ function App() {
             <Route path="/contact/write" element={<ContactWritePage />} />
             <Route path="/contact/:postId" element={<ContactDetailPage />} />
 
+            <Route path="/shop" element={<ShopPage />} />
+            <Route path="/shop/:productId" element={<ShopProductDetailPage />} />
             <Route path="/dojo" element={<Navigate to="/gym" replace />} />
             <Route path="/mt-place" element={<Navigate to="/MT" replace />} />
           </Route>

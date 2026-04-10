@@ -363,3 +363,73 @@ model ClubEventAttachment {
 
   @@index([postId])
 }
+model KendoShop {
+  id        String   @id @default(cuid())
+  key       String   @unique          // 예: "kumdoshop", "kumdomall"
+  name      String                    // 예: "검도샵"
+  baseUrl   String                    // 예: "http://www.kumdoshop.co.kr"
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prices KendoProductPrice[]
+
+  @@index([isActive])
+}
+
+model KendoProduct {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  category      String                // 대분류: 호구, 죽도&목검, ...
+  subcategory   String?               // 소분류: 고급수제호구, 일반죽도, ...
+  imageUrl      String?
+  description   String?  @db.Text
+  specifications String?  @db.Text    // JSON: 사이즈, 색상 등
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  prices       KendoProductPrice[]
+  priceHistory KendoPriceHistory[]
+
+  @@index([category])
+  @@index([subcategory])
+  @@index([name])
+}
+
+model KendoProductPrice {
+  id            String   @id @default(cuid())
+  productId     String
+  shopId        String
+  price         Int                   // 현재 가격 (원)
+  originalPrice Int?                  // 정가 (할인 전)
+  shippingFee   Int?                  // 배송비 (null이면 정보 없음)
+  productUrl    String                // 해당 쇼핑몰 상품 URL
+  inStock       Boolean  @default(true)
+  lastScrapedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product KendoProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shop    KendoShop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, shopId])
+  @@index([productId, price])
+  @@index([shopId])
+}
+
+model KendoPriceHistory {
+  id        String   @id @default(cuid())
+  productId String
+  minPrice  Int                       // 해당 날짜의 최저가
+  maxPrice  Int?
+  avgPrice  Int?
+  dateKey   String                    // YYYY-MM-DD
+  createdAt DateTime @default(now())
+
+  product KendoProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, dateKey])
+  @@index([productId, dateKey])
+}

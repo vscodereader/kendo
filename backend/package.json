@@ -20,6 +20,8 @@
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
+    "firebase-admin": "^13.1.0",
+    "iconv-lite": "^0.6.3",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
@@ -27,8 +29,7 @@
     "openai": "^5.20.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "pg": "^8.13.1",
-    "firebase-admin": "^13.1.0"
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "^7.0.3",

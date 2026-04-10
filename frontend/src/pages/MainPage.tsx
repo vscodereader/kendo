@@ -18,7 +18,8 @@ const BASE_MENU = [
   { label: '동아리 일정', path: '/schedule' },
   { label: '대회 및 심사 일정', path: '/events' },
   { label: '동아리 문의', path: '/contact' },
-  { label: '도장 위치', path: '/gym' }
+  { label: '도장 위치', path: '/gym' },
+  { label: '검도 용품 구매', path: '/shop' }
 ];
 
 const MANAGER_MENU = [

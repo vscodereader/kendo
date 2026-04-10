@@ -18,7 +18,8 @@ const MOBILE_SEARCH_PATHS = new Set([
   '/gym',
   '/moneypaid',
   '/MT',
-  '/members'
+  '/members',
+  '/shop'
 ]);
 
 function SectionLayout() {
