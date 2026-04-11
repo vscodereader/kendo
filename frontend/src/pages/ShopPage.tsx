@@ -19,11 +19,10 @@ function ShopPage() {
   const { pushToast } = useToast();
   const isMobile = useIsMobile();
 
-  // ── State ──
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [products, setProducts] = useState<ShopProductSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(Number(params.get('page') ?? '1') || 1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -32,32 +31,62 @@ function ShopPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(params.get('category'));
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(params.get('subcategory'));
 
-  // Desktop: 검색창 포커스 시 최근 검색어
+  const [categoryQueryInput, setCategoryQueryInput] = useState(params.get('categoryQuery') ?? '');
+  const [appliedCategoryQuery, setAppliedCategoryQuery] = useState(params.get('categoryQuery') ?? '');
+  const [minPriceInput, setMinPriceInput] = useState(params.get('minPrice') ?? '');
+  const [maxPriceInput, setMaxPriceInput] = useState(params.get('maxPrice') ?? '');
+  const [sortBy, setSortBy] = useState(params.get('sortBy') ?? 'price_asc');
+
   const [searchFocused, setSearchFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches());
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Mobile: 검색 드로어
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-
-  // Mobile: 카테고리 메뉴
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [expandedCategoryKey, setExpandedCategoryKey] = useState<string | null>(null);
 
-  // ── Load categories ──
   useEffect(() => {
     void fetchShopCategories()
       .then(setCategories)
       .catch(() => pushToast('카테고리를 불러오지 못했습니다.', 'error'));
-  }, []);
+  }, [pushToast]);
 
-  // ── Load products ──
   const loadProducts = useCallback(
-    async (p: number, query: string, category: string | null, subcategory: string | null) => {
+    async (
+      nextPage: number,
+      nextQuery: string,
+      nextCategory: string | null,
+      nextSubcategory: string | null,
+      nextCategoryQuery: string,
+      nextMinPrice: string,
+      nextMaxPrice: string,
+      nextSortBy: string
+    ) => {
       setLoading(true);
       try {
-        const data = await fetchShopProducts({ page: p, query, category, subcategory, sortBy: 'price_asc' });
-        setProducts(data.items);
+        const data = await fetchShopProducts({
+          page: nextPage,
+          query: nextQuery,
+          category: nextCategory,
+          subcategory: nextSubcategory,
+          categoryQuery: nextCategoryQuery,
+          minPrice: nextMinPrice,
+          maxPrice: nextMaxPrice,
+          sortBy: nextSortBy
+        });
+
+        const sortedItems = [...data.items];
+        if (nextSortBy === 'price_asc') {
+          sortedItems.sort((a, b) => {
+            const left = a.lowestPrice && a.lowestPrice > 0 ? a.lowestPrice : Number.MAX_SAFE_INTEGER;
+            const right = b.lowestPrice && b.lowestPrice > 0 ? b.lowestPrice : Number.MAX_SAFE_INTEGER;
+            if (left !== right) return left - right;
+            return a.name.localeCompare(b.name, 'ko');
+          });
+        }
+
+        setProducts(sortedItems);
         setPage(data.currentPage);
         setTotalPages(data.totalPages);
         setTotalCount(data.totalCount);
@@ -75,25 +104,76 @@ function ShopPage() {
     if (appliedQuery) nextParams.set('query', appliedQuery);
     if (selectedCategory) nextParams.set('category', selectedCategory);
     if (selectedSubcategory) nextParams.set('subcategory', selectedSubcategory);
+    if (appliedCategoryQuery) nextParams.set('categoryQuery', appliedCategoryQuery);
+    if (minPriceInput.trim()) nextParams.set('minPrice', minPriceInput.trim());
+    if (maxPriceInput.trim()) nextParams.set('maxPrice', maxPriceInput.trim());
+    if (sortBy) nextParams.set('sortBy', sortBy);
     if (page > 1) nextParams.set('page', String(page));
-    setParams(nextParams, { replace: true });
-    void loadProducts(page, appliedQuery, selectedCategory, selectedSubcategory);
-  }, [page, appliedQuery, selectedCategory, selectedSubcategory]);
 
-  // ── Handlers ──
+    setParams(nextParams, { replace: true });
+    void loadProducts(
+      page,
+      appliedQuery,
+      selectedCategory,
+      selectedSubcategory,
+      appliedCategoryQuery,
+      minPriceInput,
+      maxPriceInput,
+      sortBy
+    );
+  }, [
+    page,
+    appliedQuery,
+    selectedCategory,
+    selectedSubcategory,
+    appliedCategoryQuery,
+    minPriceInput,
+    maxPriceInput,
+    sortBy,
+    loadProducts,
+    setParams
+  ]);
+
+  const activeCategory = useMemo(
+    () => categories.find((category) => category.key === selectedCategory) ?? null,
+    [categories, selectedCategory]
+  );
+
+  const buildParams = useCallback(
+    (overrides?: {
+      category?: string | null;
+      subcategory?: string | null;
+      page?: number;
+    }) => {
+      const nextParams = new URLSearchParams();
+      if (appliedQuery) nextParams.set('query', appliedQuery);
+      const nextCategory = overrides?.category ?? selectedCategory;
+      const nextSubcategory = overrides?.subcategory ?? selectedSubcategory;
+      const nextPage = overrides?.page ?? page;
+      if (nextCategory) nextParams.set('category', nextCategory);
+      if (nextSubcategory) nextParams.set('subcategory', nextSubcategory);
+      if (appliedCategoryQuery) nextParams.set('categoryQuery', appliedCategoryQuery);
+      if (minPriceInput.trim()) nextParams.set('minPrice', minPriceInput.trim());
+      if (maxPriceInput.trim()) nextParams.set('maxPrice', maxPriceInput.trim());
+      if (sortBy) nextParams.set('sortBy', sortBy);
+      if (nextPage > 1) nextParams.set('page', String(nextPage));
+      return nextParams;
+    },
+    [appliedCategoryQuery, appliedQuery, maxPriceInput, minPriceInput, page, selectedCategory, selectedSubcategory, sortBy]
+  );
+
   const handleSearch = (query?: string) => {
-    const q = (query ?? queryInput).trim();
-    if (q) addRecentSearch(q);
-    setAppliedQuery(q);
+    const nextQuery = (query ?? queryInput).trim();
+    if (nextQuery) addRecentSearch(nextQuery);
+    setAppliedQuery(nextQuery);
     setPage(1);
     setRecentSearches(getRecentSearches());
     setSearchFocused(false);
     setMobileSearchOpen(false);
-
-    const nextParams = new URLSearchParams();
-    if (q) nextParams.set('query', q);
-    if (selectedCategory) nextParams.set('category', selectedCategory);
-    setParams(nextParams, { replace: true });
+    const nextParams = buildParams({ page: 1 });
+    if (nextQuery) nextParams.set('query', nextQuery);
+    else nextParams.delete('query');
+    setParams(nextParams, { replace: false });
   };
 
   const handleCategorySelect = (catKey: string | null, subKey: string | null) => {
@@ -101,6 +181,14 @@ function ShopPage() {
     setSelectedSubcategory(subKey);
     setPage(1);
     setMobileCategoryOpen(false);
+    const nextParams = buildParams({ category: catKey, subcategory: subKey, page: 1 });
+    setParams(nextParams, { replace: false });
+  };
+
+  const applyScopedFilters = () => {
+    setAppliedCategoryQuery(categoryQueryInput.trim());
+    setPage(1);
+    setMobileFilterOpen(false);
   };
 
   const handleRecentClick = (term: string) => {
@@ -113,17 +201,9 @@ function ShopPage() {
     setRecentSearches([]);
   };
 
-  // ── Active subcategories for selected category ──
-  const activeCategory = useMemo(
-    () => categories.find((c) => c.key === selectedCategory) ?? null,
-    [categories, selectedCategory]
-  );
-
-  // ────────────────── DESKTOP ──────────────────
   if (!isMobile) {
     return (
       <div className="shop-page shop-page--desktop">
-        {/* 검색 바 */}
         <div className="shop-search-bar">
           <div className="shop-search-bar__inner">
             <input
@@ -131,10 +211,15 @@ function ShopPage() {
               className="shop-search-input"
               placeholder="검도 용품을 검색하세요"
               value={queryInput}
-              onChange={(e) => setQueryInput(e.target.value)}
-              onFocus={() => { setSearchFocused(true); setRecentSearches(getRecentSearches()); }}
+              onChange={(event) => setQueryInput(event.target.value)}
+              onFocus={() => {
+                setSearchFocused(true);
+                setRecentSearches(getRecentSearches());
+              }}
               onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleSearch();
+              }}
             />
             <button className="shop-search-btn" onClick={() => handleSearch()}>검색</button>
 
@@ -154,8 +239,7 @@ function ShopPage() {
           </div>
         </div>
 
-        {/* 카테고리 탭 */}
-        <div className="shop-category-bar">
+        <div className="shop-category-bar shop-category-bar--centered">
           <button
             type="button"
             className={`shop-category-tab ${!selectedCategory ? 'is-active' : ''}`}
@@ -175,9 +259,8 @@ function ShopPage() {
           ))}
         </div>
 
-        {/* 서브카테고리 */}
         {activeCategory && (
-          <div className="shop-subcategory-bar">
+          <div className="shop-subcategory-bar shop-subcategory-bar--centered">
             <button
               type="button"
               className={`shop-subcategory-chip ${!selectedSubcategory ? 'is-active' : ''}`}
@@ -198,14 +281,56 @@ function ShopPage() {
           </div>
         )}
 
-        {/* 결과 헤더 */}
+        <div className="shop-scoped-filter-bar">
+          <input
+            className="shop-scoped-filter-input shop-scoped-filter-input--query"
+            placeholder={selectedSubcategory ? `${selectedSubcategory} 안에서 검색` : selectedCategory ? `${activeCategory?.label ?? selectedCategory} 안에서 검색` : '현재 목록 안에서 검색'}
+            value={categoryQueryInput}
+            onChange={(event) => setCategoryQueryInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyScopedFilters();
+            }}
+          />
+          <input
+            className="shop-scoped-filter-input shop-scoped-filter-input--price"
+            inputMode="numeric"
+            placeholder="최소금액"
+            value={minPriceInput}
+            onChange={(event) => setMinPriceInput(event.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyScopedFilters();
+            }}
+          />
+          <span className="shop-scoped-filter-separator">~</span>
+          <input
+            className="shop-scoped-filter-input shop-scoped-filter-input--price"
+            inputMode="numeric"
+            placeholder="최대금액"
+            value={maxPriceInput}
+            onChange={(event) => setMaxPriceInput(event.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyScopedFilters();
+            }}
+          />
+          <button type="button" className="shop-scoped-filter-btn" onClick={applyScopedFilters}>적용</button>
+          <button
+            type="button"
+            className={`shop-scoped-filter-btn ${sortBy === 'price_asc' ? 'is-active' : ''}`}
+            onClick={() => {
+              setSortBy('price_asc');
+              setPage(1);
+            }}
+          >
+            낮은가격순
+          </button>
+        </div>
+
         <div className="shop-results-header">
           {appliedQuery && <span>'{appliedQuery}' 검색결과 {totalCount}건</span>}
           {!appliedQuery && selectedCategory && <span>{activeCategory?.label ?? selectedCategory} {totalCount}건</span>}
           {!appliedQuery && !selectedCategory && <span>전체 상품 {totalCount}건</span>}
         </div>
 
-        {/* 상품 그리드 (데스크톱: 좌측 필터 + 우측 그리드) */}
         <div className="shop-desktop-layout">
           <div className="shop-desktop-sidebar">
             <h3>카테고리</h3>
@@ -257,28 +382,32 @@ function ShopPage() {
     );
   }
 
-  // ────────────────── MOBILE ──────────────────
   return (
     <div className="shop-page shop-page--mobile">
-      {/* 검색 바 */}
       <div className="shop-mobile-search-trigger" onClick={() => setMobileSearchOpen(true)}>
         <span className="shop-mobile-search-icon">🔍</span>
-        <span className="shop-mobile-search-placeholder">
-          {appliedQuery || '검도 용품을 검색하세요'}
-        </span>
+        <span className="shop-mobile-search-placeholder">{appliedQuery || '검도 용품을 검색하세요'}</span>
       </div>
 
-      {/* 카테고리 버튼 */}
-      <button
-        type="button"
-        className="shop-mobile-category-toggle"
-        onClick={() => setMobileCategoryOpen(!mobileCategoryOpen)}
-      >
-        {selectedCategory ? (activeCategory?.label ?? selectedCategory) : '카테고리'}
-        <span className="shop-mobile-category-arrow">{mobileCategoryOpen ? '▲' : '▼'}</span>
-      </button>
+      <div className="shop-mobile-toolbar">
+        <button
+          type="button"
+          className="shop-mobile-category-toggle"
+          onClick={() => setMobileCategoryOpen(!mobileCategoryOpen)}
+        >
+          {selectedCategory ? (activeCategory?.label ?? selectedCategory) : '카테고리'}
+          <span className="shop-mobile-category-arrow">{mobileCategoryOpen ? '▲' : '▼'}</span>
+        </button>
 
-      {/* 카테고리 드롭다운 */}
+        <button
+          type="button"
+          className="shop-mobile-filter-toggle"
+          onClick={() => setMobileFilterOpen(true)}
+        >
+          필터
+        </button>
+      </div>
+
       {mobileCategoryOpen && (
         <div className="shop-mobile-category-panel">
           <button
@@ -324,7 +453,6 @@ function ShopPage() {
         </div>
       )}
 
-      {/* 상품 목록 (모바일: 리스트형) */}
       <div className="shop-mobile-results">
         {loading ? (
           <div className="shop-loading">상품을 불러오는 중...</div>
@@ -342,7 +470,6 @@ function ShopPage() {
         )}
       </div>
 
-      {/* 모바일 검색 드로어 */}
       <MobileSearchDrawer
         open={mobileSearchOpen}
         onClose={() => setMobileSearchOpen(false)}
@@ -353,11 +480,24 @@ function ShopPage() {
         onRecentClick={handleRecentClick}
         onClearRecent={handleClearRecent}
       />
+
+      <MobileFilterDrawer
+        open={mobileFilterOpen}
+        onClose={() => setMobileFilterOpen(false)}
+        queryInput={categoryQueryInput}
+        onQueryChange={setCategoryQueryInput}
+        minPriceInput={minPriceInput}
+        maxPriceInput={maxPriceInput}
+        onMinPriceChange={(value) => setMinPriceInput(value.replace(/[^0-9]/g, ''))}
+        onMaxPriceChange={(value) => setMaxPriceInput(value.replace(/[^0-9]/g, ''))}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        onApply={applyScopedFilters}
+      />
     </div>
   );
 }
 
-// ───── 데스크톱 상품 카드 ─────
 function ProductCard({ product, onClick }: { product: ShopProductSummary; onClick: () => void }) {
   return (
     <button type="button" className="shop-product-card" onClick={onClick}>
@@ -388,7 +528,6 @@ function ProductCard({ product, onClick }: { product: ShopProductSummary; onClic
   );
 }
 
-// ───── 모바일 상품 카드 ─────
 function MobileProductCard({ product, onClick }: { product: ShopProductSummary; onClick: () => void }) {
   return (
     <button type="button" className="shop-mobile-product-card" onClick={onClick}>
@@ -419,9 +558,15 @@ function MobileProductCard({ product, onClick }: { product: ShopProductSummary; 
   );
 }
 
-// ───── 모바일 검색 드로어 ─────
 function MobileSearchDrawer({
-  open, onClose, onSearch, queryInput, onQueryChange, recentSearches, onRecentClick, onClearRecent
+  open,
+  onClose,
+  onSearch,
+  queryInput,
+  onQueryChange,
+  recentSearches,
+  onRecentClick,
+  onClearRecent
 }: {
   open: boolean;
   onClose: () => void;
@@ -440,12 +585,7 @@ function MobileSearchDrawer({
 
   return (
     <>
-      <button
-        type="button"
-        className={`shop-search-drawer-backdrop ${open ? 'is-open' : ''}`}
-        onClick={onClose}
-        aria-hidden={!open}
-      />
+      <button type="button" className={`shop-search-drawer-backdrop ${open ? 'is-open' : ''}`} onClick={onClose} aria-hidden={!open} />
       <aside className={`shop-search-drawer ${open ? 'is-open' : ''}`} aria-hidden={!open}>
         <div className="shop-search-drawer__header">
           <button type="button" className="shop-search-drawer__back" onClick={onClose}>←</button>
@@ -454,8 +594,10 @@ function MobileSearchDrawer({
             className="shop-search-drawer__input"
             placeholder="검색어 입력"
             value={queryInput}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') onSearch(); }}
+            onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onSearch();
+            }}
           />
           <button type="button" className="shop-search-drawer__submit" onClick={() => onSearch()}>🔍</button>
         </div>
@@ -482,21 +624,102 @@ function MobileSearchDrawer({
   );
 }
 
-// ───── 페이지네이션 ─────
+function MobileFilterDrawer({
+  open,
+  onClose,
+  queryInput,
+  onQueryChange,
+  minPriceInput,
+  maxPriceInput,
+  onMinPriceChange,
+  onMaxPriceChange,
+  sortBy,
+  onSortByChange,
+  onApply
+}: {
+  open: boolean;
+  onClose: () => void;
+  queryInput: string;
+  onQueryChange: (value: string) => void;
+  minPriceInput: string;
+  maxPriceInput: string;
+  onMinPriceChange: (value: string) => void;
+  onMaxPriceChange: (value: string) => void;
+  sortBy: string;
+  onSortByChange: (value: string) => void;
+  onApply: () => void;
+}) {
+  return (
+    <>
+      <button type="button" className={`shop-filter-drawer-backdrop ${open ? 'is-open' : ''}`} onClick={onClose} aria-hidden={!open} />
+      <aside className={`shop-filter-drawer ${open ? 'is-open' : ''}`} aria-hidden={!open}>
+        <div className="shop-filter-drawer__header">
+          <strong>필터</strong>
+          <button type="button" className="shop-filter-drawer__close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="shop-filter-drawer__section">
+          <div className="shop-filter-drawer__label">현재 카테고리 내 검색</div>
+          <input
+            className="shop-filter-drawer__input"
+            placeholder="검색어 입력"
+            value={queryInput}
+            onChange={(event) => onQueryChange(event.target.value)}
+          />
+        </div>
+
+        <div className="shop-filter-drawer__section">
+          <div className="shop-filter-drawer__label">가격대</div>
+          <div className="shop-filter-drawer__price-row">
+            <input
+              className="shop-filter-drawer__input"
+              inputMode="numeric"
+              placeholder="최소금액"
+              value={minPriceInput}
+              onChange={(event) => onMinPriceChange(event.target.value)}
+            />
+            <span>~</span>
+            <input
+              className="shop-filter-drawer__input"
+              inputMode="numeric"
+              placeholder="최대금액"
+              value={maxPriceInput}
+              onChange={(event) => onMaxPriceChange(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="shop-filter-drawer__section">
+          <div className="shop-filter-drawer__label">정렬</div>
+          <button
+            type="button"
+            className={`shop-filter-drawer__sort-btn ${sortBy === 'price_asc' ? 'is-active' : ''}`}
+            onClick={() => onSortByChange('price_asc')}
+          >
+            낮은 가격 순
+          </button>
+        </div>
+
+        <button type="button" className="shop-filter-drawer__apply" onClick={onApply}>적용</button>
+      </aside>
+    </>
+  );
+}
+
 function Pagination({ page, totalPages, onPageChange }: { page: number; totalPages: number; onPageChange: (p: number) => void }) {
   if (totalPages <= 1) return null;
 
   const pages: number[] = [];
   const start = Math.max(1, page - 2);
   const end = Math.min(totalPages, page + 2);
-  for (let i = start; i <= end; i++) pages.push(i);
+  for (let current = start; current <= end; current += 1) pages.push(current);
 
   return (
     <div className="shop-pagination">
       <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>‹</button>
-      {pages.map((p) => (
-        <button key={p} type="button" className={p === page ? 'is-active' : ''} onClick={() => onPageChange(p)}>
-          {p}
+      {pages.map((current) => (
+        <button key={current} type="button" className={current === page ? 'is-active' : ''} onClick={() => onPageChange(current)}>
+          {current}
         </button>
       ))}
       <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>›</button>

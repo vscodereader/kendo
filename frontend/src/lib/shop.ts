@@ -1,7 +1,5 @@
 import { API_BASE, apiFetch } from './auth';
 
-// ───── Types ─────
-
 export type CategoryNode = {
   key: string;
   label: string;
@@ -61,8 +59,6 @@ export type ShopProductListResponse = {
   items: ShopProductSummary[];
 };
 
-// ───── API ─────
-
 async function shopRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
@@ -86,6 +82,9 @@ export async function fetchShopProducts(params: {
   query?: string;
   category?: string | null;
   subcategory?: string | null;
+  categoryQuery?: string;
+  minPrice?: number | string | null;
+  maxPrice?: number | string | null;
   sortBy?: string;
 }) {
   const search = new URLSearchParams();
@@ -93,6 +92,13 @@ export async function fetchShopProducts(params: {
   if (params.query?.trim()) search.set('query', params.query.trim());
   if (params.category) search.set('category', params.category);
   if (params.subcategory) search.set('subcategory', params.subcategory);
+  if (params.categoryQuery?.trim()) search.set('categoryQuery', params.categoryQuery.trim());
+  if (params.minPrice !== null && params.minPrice !== undefined && String(params.minPrice).trim()) {
+    search.set('minPrice', String(params.minPrice).trim());
+  }
+  if (params.maxPrice !== null && params.maxPrice !== undefined && String(params.maxPrice).trim()) {
+    search.set('maxPrice', String(params.maxPrice).trim());
+  }
   if (params.sortBy) search.set('sortBy', params.sortBy);
   return shopRequest<ShopProductListResponse>(`/club/shop/products?${search.toString()}`);
 }
@@ -109,10 +115,8 @@ export async function fetchPriceHistory(productId: string, months: number) {
 
 export function formatKRW(value: number | null | undefined) {
   if (value === null || value === undefined) return '';
-  return new Intl.NumberFormat('ko-KR').format(value) + '원';
+  return `${new Intl.NumberFormat('ko-KR').format(value)}원`;
 }
-
-// ───── 최근 검색어 (localStorage) ─────
 
 const RECENT_SEARCH_KEY = 'kendo_shop_recent_searches';
 const MAX_RECENT = 10;

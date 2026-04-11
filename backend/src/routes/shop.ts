@@ -6,41 +6,63 @@ import { runFullScrape, runSingleShopScrape, seedShops, CATEGORY_TREE } from '..
 
 const router = Router();
 
-// ───── 카테고리 트리 ─────
 router.get('/categories', requireApprovedClubAccess, (_req, res) => {
   res.json(CATEGORY_TREE);
 });
 
-// ───── 상품 검색 / 목록 ─────
 router.get('/products', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = 20;
     const query = sanitizeNullableString(req.query.query)?.trim() ?? null;
+    const categoryQuery = sanitizeNullableString(req.query.categoryQuery)?.trim() ?? null;
     const category = sanitizeNullableString(req.query.category) ?? null;
     const subcategory = sanitizeNullableString(req.query.subcategory) ?? null;
+    const minPrice = sanitizeNullableInt(req.query.minPrice);
+    const maxPrice = sanitizeNullableInt(req.query.maxPrice);
     const sortBy = String(req.query.sortBy ?? 'price_asc');
 
-    const where: Record<string, unknown> = {};
+    const andFilters: Array<Record<string, unknown>> = [];
 
     if (query) {
-      where.name = { contains: query, mode: 'insensitive' };
+      andFilters.push({ name: { contains: query, mode: 'insensitive' } });
+    }
+    if (categoryQuery) {
+      andFilters.push({ name: { contains: categoryQuery, mode: 'insensitive' } });
     }
     if (category) {
-      where.category = category;
+      andFilters.push({ category });
     }
     if (subcategory) {
-      where.subcategory = subcategory;
+      andFilters.push({ subcategory });
     }
+
+    if (minPrice !== null || maxPrice !== null) {
+      andFilters.push({
+        prices: {
+          some: {
+            price: {
+              ...(minPrice !== null ? { gte: minPrice } : {}),
+              ...(maxPrice !== null ? { lte: maxPrice } : {})
+            }
+          }
+        }
+      });
+    }
+
+    const where = andFilters.length > 0 ? { AND: andFilters } : {};
 
     const orderBy: Array<Record<string, unknown>> = [];
     if (sortBy === 'price_desc') {
       orderBy.push({ prices: { _min: { price: 'desc' } } });
+    } else if (sortBy === 'price_asc') {
+      orderBy.push({ prices: { _min: { price: 'asc' } } });
     } else if (sortBy === 'name') {
       orderBy.push({ name: 'asc' });
     } else if (sortBy === 'newest') {
       orderBy.push({ createdAt: 'desc' });
     }
+    orderBy.push({ updatedAt: 'desc' });
 
     const totalCount = await prisma.kendoProduct.count({ where });
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -55,18 +77,16 @@ router.get('/products', requireApprovedClubAccess, async (req, res, next) => {
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: orderBy.length > 0 ? orderBy : [{ updatedAt: 'desc' }]
+      orderBy
     });
 
     const items = products.map(serializeProductSummary);
-
     res.json({ currentPage: page, totalPages, totalCount, items });
   } catch (error) {
     next(error);
   }
 });
 
-// ───── 상품 상세 ─────
 router.get('/products/:productId', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const product = await prisma.kendoProduct.findUnique({
@@ -93,7 +113,6 @@ router.get('/products/:productId', requireApprovedClubAccess, async (req, res, n
   }
 });
 
-// ───── 가격 추이 ─────
 router.get('/products/:productId/price-history', requireApprovedClubAccess, async (req, res, next) => {
   try {
     const months = Math.min(24, Math.max(1, Number(req.query.months) || 1));
@@ -109,16 +128,13 @@ router.get('/products/:productId/price-history', requireApprovedClubAccess, asyn
       orderBy: { dateKey: 'asc' }
     });
 
-    // 7일 단위로 집계
     const weeklyPoints = aggregateWeekly(history);
-
     res.json({ months, points: weeklyPoints });
   } catch (error) {
     next(error);
   }
 });
 
-// ───── 쇼핑몰 목록 ─────
 router.get('/shops', requireApprovedClubAccess, async (_req, res, next) => {
   try {
     const shops = await prisma.kendoShop.findMany({
@@ -131,7 +147,6 @@ router.get('/shops', requireApprovedClubAccess, async (_req, res, next) => {
   }
 });
 
-// ───── 관리자: 스크래핑 실행 ─────
 router.post('/admin/scrape', async (req, res, next) => {
   try {
     const secret = req.header('X-Approval-Reminder-Secret')?.trim();
@@ -154,7 +169,6 @@ router.post('/admin/scrape', async (req, res, next) => {
   }
 });
 
-// ───── 관리자: 초기 쇼핑몰 시드 ─────
 router.post('/admin/seed-shops', async (req, res, next) => {
   try {
     const secret = req.header('X-Approval-Reminder-Secret')?.trim();
@@ -172,8 +186,6 @@ router.post('/admin/seed-shops', async (req, res, next) => {
   }
 });
 
-// ───── Serializers ─────
-
 function serializeProductSummary(product: {
   id: string;
   name: string;
@@ -188,7 +200,13 @@ function serializeProductSummary(product: {
     shop: { name: string; key: string };
   }>;
 }) {
-  const lowestPrice = product.prices[0] ?? null;
+  const displaySortedPrices = [...product.prices].sort((left, right) => {
+    const leftPrice = left.price > 0 ? left.price : Number.MAX_SAFE_INTEGER;
+    const rightPrice = right.price > 0 ? right.price : Number.MAX_SAFE_INTEGER;
+    return leftPrice - rightPrice;
+  });
+
+  const lowestPrice = displaySortedPrices[0] ?? null;
 
   return {
     id: product.id,
