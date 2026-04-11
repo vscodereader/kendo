@@ -25,13 +25,7 @@ type SubcategoryValue =
   | '죽도 코등이' | '죽도 코등이받침' | '목검 코등이'
   | null;
 
-type Classification = {
-  category: CategoryValue;
-  subcategory: SubcategoryValue;
-  skip?: boolean;
-  skipReason?: string | null;
-  matchedRuleId?: string | null;
-};
+type Classification = { category: CategoryValue; subcategory: SubcategoryValue; skip?: boolean };
 type CU = { url: string; category: CategoryValue; subcategory: SubcategoryValue };
 type SP = {
   name: string;
@@ -56,40 +50,6 @@ type RuleDefinition = {
   id: string;
   when: (ctx: ReclassifyContext) => boolean;
   result: Classification | ((ctx: ReclassifyContext) => Classification);
-};
-type SkipReasonCounter = Record<string, number>;
-
-type UrlScrapeDiagnostics = {
-  url: string;
-  category: CategoryValue;
-  subcategory: SubcategoryValue;
-  pagesAttempted: number;
-  pagesSucceeded: number;
-  rawCardCount: number;
-  acceptedCount: number;
-  skippedCount: number;
-  skipReasons: SkipReasonCounter;
-  lastError: string | null;
-};
-
-type ShopScrapeDiagnostics = {
-  shopKey: string;
-  urlCount: number;
-  pagesAttempted: number;
-  pagesSucceeded: number;
-  pageErrorCount: number;
-  rawCardCount: number;
-  acceptedCount: number;
-  skippedCount: number;
-  saveErrorCount: number;
-  skipReasons: SkipReasonCounter;
-  lastPageError: string | null;
-  byUrl: UrlScrapeDiagnostics[];
-};
-
-type ScrapeExecutionResult = {
-  products: SP[];
-  diagnostics: ShopScrapeDiagnostics;
 };
 
 const SHOP_SEEDS = [
@@ -122,8 +82,8 @@ const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%EA%B8%B0%ED%83%80%EC%86%8C%ED%92%88/237/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%EB%8F%84%EB%B3%B5%EC%86%8C%ED%92%88/234/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84%EC%86%8C%ED%92%88/177/', category: '액세서리', subcategory: null },
-  { url: 'https://woochangsports.net/category/%EA%B8%B0%ED%83%80-%EC%86%8C%ED%92%88/103/', category: '액세서리', subcategory: null },
-  { url: 'https://woochangsports.net/category/%EB%AC%B4%EC%88%A0%EC%88%98%EB%A0%A8%EC%9E%A5%EB%B9%84/104/', category: '액세서리', subcategory: null },
+  { url: 'https://woochangsports.net/category/%EA%B8%B0%ED%83%80-%EC%86%8C%ED%92%88/233/', category: '액세서리', subcategory: null },
+  { url: 'https://woochangsports.net/category/%EB%AC%B4%EC%88%A0%EC%88%98%EB%A0%A8%EC%9E%A5%EB%B9%84/272/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B0%98%EB%8F%84%EB%B3%B5/220/', category: '도복', subcategory: '일반도복set' },
   { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89%EB%8F%84%EB%B3%B5/221/', category: '도복', subcategory: '고급도복set' },
   { url: 'https://woochangsports.net/category/%EA%B8%B0%EB%8A%A5%EC%84%B1%EB%8F%84%EB%B3%B5/222/', category: '도복', subcategory: '기능성도복set' },
@@ -142,29 +102,31 @@ const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%EC%95%8C%EC%A3%BD%EB%8F%84/174/', category: '죽도&목검&가검', subcategory: '기타죽도' },
   { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EC%95%8C%EC%A3%BD%EB%8F%84/175/', category: '죽도&목검&가검', subcategory: '일제죽도' },
   { url: 'https://woochangsports.net/category/%ED%8A%B9%EC%88%98%EC%A3%BD%EB%8F%84%ED%9B%88%EB%A0%A8%EC%9A%A9%EC%A3%BD%EB%8F%84/176/', category: '죽도&목검&가검', subcategory: '기타죽도' },
-  { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80/100/', category: '죽도&목검&가검', subcategory: '목검' },
-  { url: 'https://woochangsports.net/category/%EA%B0%80%EA%B2%80/101/', category: '죽도&목검&가검', subcategory: '가검' },
-  { url: 'https://woochangsports.net/category/%EC%A2%8C%EB%8C%80/102/', category: '죽도&목검&가검', subcategory: '좌대' },
-  { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84-%EC%BD%94%EB%93%B1%EC%9D%B4/137/', category: '코등이/받침', subcategory: '죽도 코등이' },
-  { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84-%EC%BD%94%EB%93%B1%EC%9D%B4%EB%B0%9B%EC%B9%A8/138/', category: '코등이/받침', subcategory: '죽도 코등이받침' },
-  { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80-%EC%BD%94%EB%93%B1%EC%9D%B4/139/', category: '코등이/받침', subcategory: '목검 코등이' },
-  { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84%EC%A7%91%EB%AA%A9%EA%B2%80%EC%A7%91/62/', category: '죽도집&가방류', subcategory: '죽도집/목검집' },
-  { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EA%B0%80%EB%B0%A9/63/', category: '죽도집&가방류', subcategory: '호구가방' },
-  { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EA%B0%80%EB%B0%A9%EC%A3%BD%EB%8F%84%EC%A7%91-%EC%84%B8%ED%8A%B8/64/', category: '죽도집&가방류', subcategory: '호구가방' },
-  { url: 'https://woochangsports.net/category/%EB%8F%84%EB%B3%B5%EA%B0%80%EB%B0%A9%EC%86%90%EA%B0%80%EB%B0%A9%ED%98%B8%EC%99%84%EA%B0%80%EB%B0%A9/65/', category: '죽도집&가방류', subcategory: '기타가방' },
-  { url: 'https://woochangsports.net/category/%EC%8B%AC%ED%8C%90%EA%B8%B0%EC%A7%91/66/', category: '죽도집&가방류', subcategory: '심판기집' },
-  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EC%9D%B4%EC%9B%90%EC%97%BC-%EB%A9%B4%EC%88%98%EA%B1%B4/77/', category: '면수건', subcategory: '일본산면수건' },
-  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EB%A9%B4%EC%88%98%EA%B1%B4/78/', category: '면수건', subcategory: '일본산면수건' },
-  { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89-%EB%A9%B4%EC%88%98%EA%B1%B4/79/', category: '면수건', subcategory: '고급면수건' },
-  { url: 'https://woochangsports.net/category/%EB%AA%A8%EC%9E%90-%EB%A9%B4%EC%88%98%EA%B1%B4/80/', category: '면수건', subcategory: '기타면수건' },
-  { url: 'https://woochangsports.net/category/%EC%95%88%EB%B3%B4-%EB%A9%B4%EC%88%98%EA%B1%B4/81/', category: '면수건', subcategory: '일본산면수건' },
-  { url: 'https://woochangsports.net/category/%ED%84%B1%EB%95%80%EB%B0%9B%EC%9D%B4/33/', category: '보호대', subcategory: '턱땀받이' },
-  { url: 'https://woochangsports.net/category/%EC%86%90%EB%AA%A9%ED%8C%94%EA%BF%88%EC%B9%98/34/', category: '보호대', subcategory: '손목' },
-  { url: 'https://woochangsports.net/category/%EB%AC%B4%EB%A6%8E/35/', category: '보호대', subcategory: '무릎' },
-  { url: 'https://woochangsports.net/category/%EB%B0%9C/36/', category: '보호대', subcategory: '발' },
-  { url: 'https://woochangsports.net/category/%EA%B8%B0%ED%83%80/37/', category: '보호대', subcategory: '기타' },
-  { url: 'https://woochangsports.net/category/%ED%85%8C%EC%9D%B4%ED%95%91/38/', category: '보호대', subcategory: '테이핑' },
-  { url: 'https://woochangsports.net/category/%EC%9E%A0%EC%8A%A4%ED%8A%B8/39/', category: '보호대', subcategory: null },
+  { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80/101/', category: '죽도&목검&가검', subcategory: '목검' },
+  { url: 'https://woochangsports.net/category/%EA%B0%80%EA%B2%80/102/', category: '죽도&목검&가검', subcategory: '가검' },
+  { url: 'https://woochangsports.net/category/%EC%A2%8C%EB%8C%80/231/', category: '죽도&목검&가검', subcategory: '좌대' },
+  { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84-%EC%BD%94%EB%93%B1%EC%9D%B4/138/', category: '코등이/받침', subcategory: '죽도 코등이' },
+  { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84-%EC%BD%94%EB%93%B1%EC%9D%B4%EB%B0%9B%EC%B9%A8/156/', category: '코등이/받침', subcategory: '죽도 코등이받침' },
+  { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80-%EC%BD%94%EB%93%B1%EC%9D%B4/286/', category: '코등이/받침', subcategory: '목검 코등이' },
+  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B0%98-%EC%A3%BD%EB%8F%84%EC%A7%91/120/', category: '죽도집&가방류', subcategory: '죽도집/목검집' },
+  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EC%A3%BD%EB%8F%84%EC%A7%91/118/', category: '죽도집&가방류', subcategory: '죽도집/목검집' },
+  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B0%98-%EB%AA%A9%EA%B2%80%EC%A7%91/285/', category: '죽도집&가방류', subcategory: '죽도집/목검집' },
+  { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EA%B0%80%EB%B0%A9/116/', category: '죽도집&가방류', subcategory: '호구가방' },
+  { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EA%B0%80%EB%B0%A9%EC%A3%BD%EB%8F%84%EC%A7%91-%EC%84%B8%ED%8A%B8/201/', category: '죽도집&가방류', subcategory: '호구가방' },
+  { url: 'https://woochangsports.net/category/%EB%8F%84%EB%B3%B5%EA%B0%80%EB%B0%A9%EC%86%90%EA%B0%80%EB%B0%A9%ED%98%B8%EC%99%84%EA%B0%80%EB%B0%A9/117/', category: '죽도집&가방류', subcategory: '기타가방' },
+  { url: 'https://woochangsports.net/category/%EC%8B%AC%ED%8C%90%EA%B8%B0%EC%A7%91/284/', category: '죽도집&가방류', subcategory: '심판기집' },
+  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EC%9D%B4%EC%9B%90%EC%97%BC-%EB%A9%B4%EC%88%98%EA%B1%B4/152/', category: '면수건', subcategory: '일본산면수건' },
+  { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EB%A9%B4%EC%88%98%EA%B1%B4/121/', category: '면수건', subcategory: '일본산면수건' },
+  { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89-%EB%A9%B4%EC%88%98%EA%B1%B4/122/', category: '면수건', subcategory: '고급면수건' },
+  { url: 'https://woochangsports.net/category/%EB%AA%A8%EC%9E%90-%EB%A9%B4%EC%88%98%EA%B1%B4/197/', category: '면수건', subcategory: '기타면수건' },
+  { url: 'https://woochangsports.net/category/%EC%95%88%EB%B3%B4-%EB%A9%B4%EC%88%98%EA%B1%B4/288/', category: '면수건', subcategory: '일본산면수건' },
+  { url: 'https://woochangsports.net/category/%ED%84%B1%EB%95%80%EB%B0%9B%EC%9D%B4/196/', category: '보호대', subcategory: '턱땀받이' },
+  { url: 'https://woochangsports.net/category/%EC%86%90%EB%AA%A9%ED%8C%94%EA%BF%88%EC%B9%98/174/', category: '보호대', subcategory: '손목' },
+  { url: 'https://woochangsports.net/category/%EB%AC%B4%EB%A6%8E/175/', category: '보호대', subcategory: '무릎' },
+  { url: 'https://woochangsports.net/category/%EB%B0%9C/176/', category: '보호대', subcategory: '발' },
+  { url: 'https://woochangsports.net/category/%EA%B8%B0%ED%83%80/177/', category: '보호대', subcategory: '기타' },
+  { url: 'https://woochangsports.net/category/%ED%85%8C%EC%9D%B4%ED%95%91/179/', category: '보호대', subcategory: '테이핑' },
+  { url: 'https://woochangsports.net/category/%EC%9E%A0%EC%8A%A4%ED%8A%B8/178/', category: '보호대', subcategory: null },
 ];
 
 const KENDOMALL_COM_URL_RULES: CU[] = [
@@ -589,93 +551,45 @@ async function fetchPage(url: string, encoding: 'utf-8' | 'euc-kr' = 'utf-8') {
     : Buffer.from(response.data).toString('utf-8');
 }
 
-function createUrlDiagnostics(cat: CU): UrlScrapeDiagnostics {
-  return {
-    url: cat.url,
-    category: cat.category,
-    subcategory: cat.subcategory,
-    pagesAttempted: 0,
-    pagesSucceeded: 0,
-    rawCardCount: 0,
-    acceptedCount: 0,
-    skippedCount: 0,
-    skipReasons: {},
-    lastError: null
-  };
+function getCafe24Candidates($doc: cheerio.CheerioAPI) {
+  return $doc('li').filter((_, el) => {
+    const $el = $doc(el);
+
+    const href =
+      $el.find('a[href*="product/detail"], a[href*="product_no="], a[href*="/product/"]').first().attr('href') ?? '';
+
+    const text = $el.text().replace(/\s+/g, ' ').trim();
+
+    if (href.includes('product_no=')) return true;
+    if (/상품명\s*:/.test(text)) return true;
+
+    return false;
+  });
 }
 
-function createShopDiagnostics(shopKey: string, urls: CU[]): ShopScrapeDiagnostics {
-  return {
-    shopKey,
-    urlCount: urls.length,
-    pagesAttempted: 0,
-    pagesSucceeded: 0,
-    pageErrorCount: 0,
-    rawCardCount: 0,
-    acceptedCount: 0,
-    skippedCount: 0,
-    saveErrorCount: 0,
-    skipReasons: {},
-    lastPageError: null,
-    byUrl: urls.map((cat) => createUrlDiagnostics(cat))
-  };
+function extractCafe24ProductName($el: any) {
+  const directName = (
+    $el.find('.name a, .name span, .prd_name a, .item_name a').first().text() ?? ''
+  )
+    .replace(/^상품명\s*:\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (directName) return directName;
+
+  const cardText = $el.text().replace(/\s+/g, ' ').trim();
+  const match = cardText.match(/상품명\s*:\s*(.+?)(?=\s*(?:제조사|판매가|소비자가|적립금|상품코드|$))/);
+
+  return match?.[1]?.trim() ?? '';
 }
 
-function incrementCounter(counter: SkipReasonCounter, key: string, amount = 1) {
-  counter[key] = (counter[key] ?? 0) + amount;
-}
 
-function recordRawCards(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics, count: number) {
-  shopDiagnostics.rawCardCount += count;
-  urlDiagnostics.rawCardCount += count;
-}
-
-function recordAccepted(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics) {
-  shopDiagnostics.acceptedCount += 1;
-  urlDiagnostics.acceptedCount += 1;
-}
-
-function recordSkipped(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics, reason: string) {
-  shopDiagnostics.skippedCount += 1;
-  urlDiagnostics.skippedCount += 1;
-  incrementCounter(shopDiagnostics.skipReasons, reason);
-  incrementCounter(urlDiagnostics.skipReasons, reason);
-}
-
-function recordPageAttempt(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics) {
-  shopDiagnostics.pagesAttempted += 1;
-  urlDiagnostics.pagesAttempted += 1;
-}
-
-function recordPageSuccess(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics) {
-  shopDiagnostics.pagesSucceeded += 1;
-  urlDiagnostics.pagesSucceeded += 1;
-}
-
-function recordPageError(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics, error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  shopDiagnostics.pageErrorCount += 1;
-  shopDiagnostics.lastPageError = message;
-  urlDiagnostics.lastError = message;
-}
-
-async function scrapeCafe24(
-  shopKey: string,
-  baseUrl: string,
-  urls: CU[],
-  encoding: 'utf-8' | 'euc-kr' = 'utf-8'
-): Promise<ScrapeExecutionResult> {
+async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'euc-kr' = 'utf-8'): Promise<SP[]> {
   const all: SP[] = [];
-  const diagnostics = createShopDiagnostics(shopKey, urls);
 
-  for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
-    const cat = urls[urlIndex];
-    const urlDiagnostics = diagnostics.byUrl[urlIndex];
-
+  for (const cat of urls) {
     try {
-      recordPageAttempt(diagnostics, urlDiagnostics);
       const html = await fetchPage(cat.url, encoding);
-      recordPageSuccess(diagnostics, urlDiagnostics);
       const $ = cheerio.load(html);
 
       let maxPage = 1;
@@ -685,38 +599,27 @@ async function scrapeCafe24(
       });
 
       const parse = ($doc: cheerio.CheerioAPI) => {
-        const candidates = $doc('.xans-product-listnormal li, ul.prdList li');
-        recordRawCards(diagnostics, urlDiagnostics, candidates.length);
-
+        const candidates = getCafe24Candidates($doc);
         candidates.each((_, el) => {
           const $el = $doc(el);
-          const raw = ($el.find('.name a, .name span, .prd_name a, .item_name a').first().text() ?? '').trim();
-          const name = raw.replace(/^상품명\s*:\s*/, '').trim();
-
-          if (!name) {
-            recordSkipped(diagnostics, urlDiagnostics, 'missing_name');
-            return;
-          }
+          const name = extractCafe24ProductName($el);
+          if (!name) return;
 
           const spec = $el.find('.spec, .mun, p.price, .xans-product-listitem-price').first().text() ?? '';
           const priceMatch = spec.match(/판매가\s*:\s*([\d,]+)/);
           const priceText = priceMatch ? priceMatch[1] : ($el.find('.price span, .sale_price').first().text() ?? '');
           const price = parsePrice(priceText);
-
-          if (!price && !/가격문의|문의/.test(spec)) {
-            recordSkipped(diagnostics, urlDiagnostics, 'missing_price');
-            return;
-          }
+          if (!price && !/가격문의|문의/.test(spec)) return;
 
           const img = $el.find('img').first().attr('src') ?? $el.find('img').first().attr('data-src') ?? null;
           const imageUrl = img ? resolveUrl(baseUrl, img) : null;
 
-          const href = $el.find('a').first().attr('href') ?? '';
+          const href =
+            $el.find('a[href*="product/detail"], a[href*="product_no="], a[href*="/product/"]').first().attr('href') ??
+            $el.find('a').first().attr('href') ??
+            '';
           const productUrl = href ? resolveUrl(baseUrl, href) : '';
-          if (!productUrl) {
-            recordSkipped(diagnostics, urlDiagnostics, 'missing_product_url');
-            return;
-          }
+          if (!productUrl) return;
 
           const classified = reclassify({
             name,
@@ -725,16 +628,7 @@ async function scrapeCafe24(
             sourceUrl: cat.url,
           });
 
-          if (classified.skip) {
-            recordSkipped(
-              diagnostics,
-              urlDiagnostics,
-              `rule:${classified.skipReason ?? classified.matchedRuleId ?? 'unknown_skip_rule'}`
-            );
-            return;
-          }
-
-          recordAccepted(diagnostics, urlDiagnostics);
+          if (classified.skip) return;
 
           all.push({
             name,
@@ -753,47 +647,28 @@ async function scrapeCafe24(
 
       for (let page = 2; page <= Math.min(maxPage, 10); page++) {
         try {
-          recordPageAttempt(diagnostics, urlDiagnostics);
           const separator = cat.url.includes('?') ? '&' : '?';
           const nextHtml = await fetchPage(`${cat.url}${separator}page=${page}`, encoding);
-          recordPageSuccess(diagnostics, urlDiagnostics);
           parse(cheerio.load(nextHtml));
-        } catch (err) {
-          recordPageError(diagnostics, urlDiagnostics, err);
-          console.error(`[scrape] ${cat.url} page=${page}`, err instanceof Error ? err.message : err);
-        }
+        } catch {}
       }
     } catch (err) {
-      recordPageError(diagnostics, urlDiagnostics, err);
       console.error(`[scrape] ${cat.url}`, err instanceof Error ? err.message : err);
     }
   }
 
-  return { products: all, diagnostics };
+  return all;
 }
 
-async function scrapeLegacy(
-  shopKey: string,
-  baseUrl: string,
-  urls: CU[]
-): Promise<ScrapeExecutionResult> {
+async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
   const all: SP[] = [];
-  const diagnostics = createShopDiagnostics(shopKey, urls);
 
-  for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
-    const cat = urls[urlIndex];
-    const urlDiagnostics = diagnostics.byUrl[urlIndex];
-
+  for (const cat of urls) {
     try {
-      recordPageAttempt(diagnostics, urlDiagnostics);
       const html = await fetchPage(cat.url, 'euc-kr');
-      recordPageSuccess(diagnostics, urlDiagnostics);
       const $ = cheerio.load(html);
 
-      const candidates = $('table.MK_product_list tr, li[id^="anchorBoxId_"], div.item_box, .brand_prd_box li, ul.prdList li, .xans-product-listnormal li');
-      recordRawCards(diagnostics, urlDiagnostics, candidates.length);
-
-      candidates.each((_, el) => {
+      $('table.MK_product_list tr, li[id^="anchorBoxId_"], div.item_box, .brand_prd_box li, ul.prdList li, .xans-product-listnormal li').each((_, el) => {
         const $el = $(el);
         const raw = (
           $el.find('a[href*="shopdetail"], a[href*="product_detail"]').first().text() ??
@@ -802,27 +677,18 @@ async function scrapeLegacy(
         ).trim();
 
         const name = raw.replace(/^상품명\s*:\s*/, '').replace(/\s+/g, ' ').trim();
-        if (!name || name.length < 2) {
-          recordSkipped(diagnostics, urlDiagnostics, 'missing_or_short_name');
-          return;
-        }
+        if (!name || name.length < 2) return;
 
         const priceMatch = $el.text().match(/([\d,]+)\s*원/);
         const price = priceMatch ? parsePrice(priceMatch[1]) : null;
-        if (!price) {
-          recordSkipped(diagnostics, urlDiagnostics, 'missing_price');
-          return;
-        }
+        if (!price) return;
 
         const img = $el.find('img').first().attr('src') ?? null;
         const imageUrl = img ? resolveUrl(baseUrl, img) : null;
 
         const href = $el.find('a[href*="shopdetail"], a[href*="product_detail"], a').first().attr('href') ?? '';
         const productUrl = href ? resolveUrl(baseUrl, href) : '';
-        if (!productUrl) {
-          recordSkipped(diagnostics, urlDiagnostics, 'missing_product_url');
-          return;
-        }
+        if (!productUrl) return;
 
         const classified = reclassify({
           name,
@@ -831,16 +697,7 @@ async function scrapeLegacy(
           sourceUrl: cat.url,
         });
 
-        if (classified.skip) {
-          recordSkipped(
-            diagnostics,
-            urlDiagnostics,
-            `rule:${classified.skipReason ?? classified.matchedRuleId ?? 'unknown_skip_rule'}`
-          );
-          return;
-        }
-
-        recordAccepted(diagnostics, urlDiagnostics);
+        if (classified.skip) return;
 
         all.push({
           name,
@@ -854,12 +711,11 @@ async function scrapeLegacy(
         });
       });
     } catch (err) {
-      recordPageError(diagnostics, urlDiagnostics, err);
       console.error(`[scrape] ${cat.url}`, err instanceof Error ? err.message : err);
     }
   }
 
-  return { products: all, diagnostics };
+  return all;
 }
 
 function reclassify(input: {
@@ -906,12 +762,7 @@ function getFixedSourceClassification(sourceUrl: string): Classification | null 
 function findFirstMatchingRule(rules: RuleDefinition[], ctx: ReclassifyContext): Classification | null {
   for (const rule of rules) {
     if (rule.when(ctx)) {
-      const result = typeof rule.result === 'function' ? rule.result(ctx) : rule.result;
-      return {
-        ...result,
-        matchedRuleId: result.matchedRuleId ?? rule.id,
-        skipReason: result.skipReason ?? (result.skip ? rule.id : null)
-      };
+      return typeof rule.result === 'function' ? rule.result(ctx) : rule.result;
     }
   }
   return null;
@@ -969,22 +820,12 @@ export async function runSingleShopScrape(shopKey: string) {
   if (!shop) return { shopKey, error: 'not-found', scraped: 0, saved: 0 };
 
   const urls = config.urls;
-  if (!urls.length) {
-    return {
-      shopKey,
-      scraped: 0,
-      saved: 0,
-      diagnostics: createShopDiagnostics(shopKey, urls)
-    };
-  }
+  if (!urls.length) return { shopKey, scraped: 0, saved: 0 };
 
-  const scrapeResult =
+  const products =
     config.scraper === 'cafe24'
-      ? await scrapeCafe24(shopKey, shop.baseUrl, urls, config.encoding)
-      : await scrapeLegacy(shopKey, shop.baseUrl, urls);
-
-  const products = scrapeResult.products;
-  const diagnostics = scrapeResult.diagnostics;
+      ? await scrapeCafe24(shop.baseUrl, urls, config.encoding)
+      : await scrapeLegacy(shop.baseUrl, urls);
 
   let saved = 0;
   for (const item of products) {
@@ -992,7 +833,6 @@ export async function runSingleShopScrape(shopKey: string) {
       await upsertScrapedProduct(shop.id, item);
       saved++;
     } catch (err) {
-      diagnostics.saveErrorCount += 1;
       console.error(`[save] ${item.name}`, err instanceof Error ? err.message : err);
     }
   }
@@ -1014,22 +854,11 @@ export async function runSingleShopScrape(shopKey: string) {
     });
   }
 
-  return {
-    shopKey,
-    scraped: products.length,
-    saved,
-    diagnostics
-  };
+  return { shopKey, scraped: products.length, saved };
 }
 
 export async function runFullScrape() {
-  const results: Array<{
-    shopKey: string;
-    scraped?: number;
-    saved?: number;
-    error?: string;
-    diagnostics?: ShopScrapeDiagnostics;
-  }> = [];
+  const results: Array<{ shopKey: string; scraped?: number; saved?: number; error?: string }> = [];
 
   for (const shopKey of Object.keys(SHOP_CONFIG)) {
     results.push(await runSingleShopScrape(shopKey));
