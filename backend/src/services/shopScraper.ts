@@ -25,7 +25,7 @@ type SubcategoryValue =
   | '죽도 코등이' | '죽도 코등이받침' | '목검 코등이'
   | null;
 
-type Classification = { category: CategoryValue; subcategory: SubcategoryValue };
+type Classification = { category: CategoryValue; subcategory: SubcategoryValue; skip?: boolean };
 type CU = { url: string; category: CategoryValue; subcategory: SubcategoryValue };
 type SP = {
   name: string;
@@ -49,7 +49,7 @@ type ReclassifyContext = {
 type RuleDefinition = {
   id: string;
   when: (ctx: ReclassifyContext) => boolean;
-  result: Classification;
+  result: Classification | ((ctx: ReclassifyContext) => Classification);
 };
 
 const SHOP_SEEDS = [
@@ -63,11 +63,6 @@ const SHOP_SEEDS = [
   { key: 'kendomall', name: '검도몰닷컴(나우TECH)', baseUrl: 'https://kendomall.com' }
 ] as const;
 
-// ============================================================
-// 1) 쇼핑몰별 "URL -> 기본 카테고리" 규칙
-//    앞으로 새 링크가 생기면 우선 여기만 추가하면 됨.
-// ============================================================
-
 const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89-%EC%88%98%EC%A0%9C%ED%98%B8%EA%B5%AC/281/', category: '호구', subcategory: '고급호구set' },
   { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89-%EA%B8%B0%EA%B3%84%EC%8B%9D%ED%98%B8%EA%B5%AC/282/', category: '호구', subcategory: '고급호구set' },
@@ -78,7 +73,6 @@ const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%ED%98%B8%EC%99%84/225/', category: '호구', subcategory: '호완' },
   { url: 'https://woochangsports.net/category/%EA%B0%91%EC%83%81/226/', category: '호구', subcategory: '갑상' },
   { url: 'https://woochangsports.net/category/%EB%AA%85%ED%8C%A8/240/', category: '호구', subcategory: '명패' },
-
   { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC-%EC%95%A1%EC%84%B8%EC%84%9C%EB%A6%AC/235/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EC%9D%B4%EB%A6%84%ED%91%9C/278/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%EC%95%A1%EC%84%B8%EC%84%9C%EB%A6%AC/134/', category: '액세서리', subcategory: null },
@@ -90,7 +84,6 @@ const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84%EC%86%8C%ED%92%88/177/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%EA%B8%B0%ED%83%80-%EC%86%8C%ED%92%88/103/', category: '액세서리', subcategory: null },
   { url: 'https://woochangsports.net/category/%EB%AC%B4%EC%88%A0%EC%88%98%EB%A0%A8%EC%9E%A5%EB%B9%84/104/', category: '액세서리', subcategory: null },
-
   { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B0%98%EB%8F%84%EB%B3%B5/220/', category: '도복', subcategory: '일반도복set' },
   { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89%EB%8F%84%EB%B3%B5/221/', category: '도복', subcategory: '고급도복set' },
   { url: 'https://woochangsports.net/category/%EA%B8%B0%EB%8A%A5%EC%84%B1%EB%8F%84%EB%B3%B5/222/', category: '도복', subcategory: '기능성도복set' },
@@ -102,7 +95,6 @@ const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%EB%82%98%EC%B9%B4%EC%A7%80%EB%A7%88/210/', category: '도복', subcategory: '일본산도복set' },
   { url: 'https://woochangsports.net/category/%EC%82%B0%EC%BC%80%EC%9D%B4/212/', category: '도복', subcategory: '일본산도복set' },
   { url: 'https://woochangsports.net/category/%EA%B0%80%EC%A0%9C/213/', category: '도복', subcategory: '일본산도복set' },
-
   { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B0%98%EC%A3%BD%EB%8F%84/170/', category: '죽도&목검&가검', subcategory: '일반죽도' },
   { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89%EC%A3%BD%EB%8F%84/171/', category: '죽도&목검&가검', subcategory: '고급죽도' },
   { url: 'https://woochangsports.net/category/%EC%8B%9C%ED%95%A9%EC%9A%A9%EC%A3%BD%EB%8F%84/172/', category: '죽도&목검&가검', subcategory: '시합용죽도' },
@@ -113,23 +105,19 @@ const WOOCHANG_URL_RULES: CU[] = [
   { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80/100/', category: '죽도&목검&가검', subcategory: '목검' },
   { url: 'https://woochangsports.net/category/%EA%B0%80%EA%B2%80/101/', category: '죽도&목검&가검', subcategory: '가검' },
   { url: 'https://woochangsports.net/category/%EC%A2%8C%EB%8C%80/102/', category: '죽도&목검&가검', subcategory: '좌대' },
-
   { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84-%EC%BD%94%EB%93%B1%EC%9D%B4/137/', category: '코등이/받침', subcategory: '죽도 코등이' },
   { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84-%EC%BD%94%EB%93%B1%EC%9D%B4%EB%B0%9B%EC%B9%A8/138/', category: '코등이/받침', subcategory: '죽도 코등이받침' },
   { url: 'https://woochangsports.net/category/%EB%AA%A9%EA%B2%80-%EC%BD%94%EB%93%B1%EC%9D%B4/139/', category: '코등이/받침', subcategory: '목검 코등이' },
-
   { url: 'https://woochangsports.net/category/%EC%A3%BD%EB%8F%84%EC%A7%91%EB%AA%A9%EA%B2%80%EC%A7%91/62/', category: '죽도집&가방류', subcategory: '죽도집/목검집' },
   { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EA%B0%80%EB%B0%A9/63/', category: '죽도집&가방류', subcategory: '호구가방' },
   { url: 'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EA%B0%80%EB%B0%A9%EC%A3%BD%EB%8F%84%EC%A7%91-%EC%84%B8%ED%8A%B8/64/', category: '죽도집&가방류', subcategory: '호구가방' },
   { url: 'https://woochangsports.net/category/%EB%8F%84%EB%B3%B5%EA%B0%80%EB%B0%A9%EC%86%90%EA%B0%80%EB%B0%A9%ED%98%B8%EC%99%84%EA%B0%80%EB%B0%A9/65/', category: '죽도집&가방류', subcategory: '기타가방' },
   { url: 'https://woochangsports.net/category/%EC%8B%AC%ED%8C%90%EA%B8%B0%EC%A7%91/66/', category: '죽도집&가방류', subcategory: '심판기집' },
-
   { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EC%9D%B4%EC%9B%90%EC%97%BC-%EB%A9%B4%EC%88%98%EA%B1%B4/77/', category: '면수건', subcategory: '일본산면수건' },
   { url: 'https://woochangsports.net/category/%EC%9D%BC%EB%B3%B8%EC%82%B0-%EB%A9%B4%EC%88%98%EA%B1%B4/78/', category: '면수건', subcategory: '일본산면수건' },
   { url: 'https://woochangsports.net/category/%EA%B3%A0%EA%B8%89-%EB%A9%B4%EC%88%98%EA%B1%B4/79/', category: '면수건', subcategory: '고급면수건' },
   { url: 'https://woochangsports.net/category/%EB%AA%A8%EC%9E%90-%EB%A9%B4%EC%88%98%EA%B1%B4/80/', category: '면수건', subcategory: '기타면수건' },
   { url: 'https://woochangsports.net/category/%EC%95%88%EB%B3%B4-%EB%A9%B4%EC%88%98%EA%B1%B4/81/', category: '면수건', subcategory: '일본산면수건' },
-
   { url: 'https://woochangsports.net/category/%ED%84%B1%EB%95%80%EB%B0%9B%EC%9D%B4/33/', category: '보호대', subcategory: '턱땀받이' },
   { url: 'https://woochangsports.net/category/%EC%86%90%EB%AA%A9%ED%8C%94%EA%BF%88%EC%B9%98/34/', category: '보호대', subcategory: '손목' },
   { url: 'https://woochangsports.net/category/%EB%AC%B4%EB%A6%8E/35/', category: '보호대', subcategory: '무릎' },
@@ -144,19 +132,16 @@ const KENDOMALL_COM_URL_RULES: CU[] = [
   { url: 'https://kendomall.com/product/list.html?cate_no=25', category: '도복', subcategory: null },
   { url: 'https://kendomall.com/product/list.html?cate_no=93', category: '도복', subcategory: '일반도복set' },
   { url: 'https://kendomall.com/product/list.html?cate_no=92', category: '도복', subcategory: '고급도복set' },
-
   { url: 'https://kendomall.com/product/list.html?cate_no=70', category: '죽도&목검&가검', subcategory: '일반죽도' },
   { url: 'https://kendomall.com/product/list.html?cate_no=69', category: '죽도&목검&가검', subcategory: '고급죽도' },
   { url: 'https://kendomall.com/product/list.html?cate_no=84', category: '죽도&목검&가검', subcategory: '고급죽도' },
   { url: 'https://kendomall.com/product/list.html?cate_no=87', category: '죽도&목검&가검', subcategory: '고급죽도' },
   { url: 'https://kendomall.com/product/list.html?cate_no=71', category: '죽도&목검&가검', subcategory: '고급죽도' },
-
   { url: 'https://kendomall.com/product/list.html?cate_no=4', category: '죽도집&가방류', subcategory: '죽도집/목검집' },
   { url: 'https://kendomall.com/product/list.html?cate_no=38', category: '죽도&목검&가검', subcategory: '목검' },
   { url: 'https://kendomall.com/product/list.html?cate_no=39', category: '죽도&목검&가검', subcategory: '가검' },
   { url: 'https://kendomall.com/product/list.html?cate_no=40', category: '죽도&목검&가검', subcategory: '좌대' },
   { url: 'https://kendomall.com/product/list.html?cate_no=28', category: '죽도집&가방류', subcategory: '호구가방' },
-
   { url: 'https://kendomall.com/product/list.html?cate_no=31', category: '액세서리', subcategory: null },
   { url: 'https://kendomall.com/product/list.html?cate_no=32', category: '액세서리', subcategory: null },
   { url: 'https://kendomall.com/product/list.html?cate_no=86', category: '면수건', subcategory: '일반면수건' },
@@ -170,16 +155,13 @@ const SEHYUN_URL_RULES: CU[] = [
   { url: 'https://sehyun-kumdo.com/category/kote/86/', category: '호구', subcategory: '호완' },
   { url: 'https://sehyun-kumdo.com/category/mune-do/87/', category: '호구', subcategory: '갑' },
   { url: 'https://sehyun-kumdo.com/category/tare/88/', category: '호구', subcategory: '갑상' },
-
   { url: 'https://sehyun-kumdo.com/category/%EC%84%B8%ED%8A%B8/104/', category: '도복', subcategory: '고급도복set' },
   { url: 'https://sehyun-kumdo.com/category/kendogi/102/', category: '도복', subcategory: '도복상의' },
   { url: 'https://sehyun-kumdo.com/category/hakama/103/', category: '도복', subcategory: '도복하의' },
-
   { url: 'https://sehyun-kumdo.com/category/%ED%94%84%EB%A6%AC%EB%AF%B8%EC%97%84/92/', category: '죽도&목검&가검', subcategory: '고급죽도' },
   { url: 'https://sehyun-kumdo.com/category/madake-shinai/90/', category: '죽도&목검&가검', subcategory: '고급죽도' },
   { url: 'https://sehyun-kumdo.com/category/keichiku-shinai/91/', category: '죽도&목검&가검', subcategory: '일반죽도' },
   { url: 'https://sehyun-kumdo.com/category/bokken/93/', category: '죽도&목검&가검', subcategory: '목검' },
-
   { url: 'https://sehyun-kumdo.com/category/%E5%AE%89%E4%BF%A1%E5%95%86%E4%BC%9A/95/', category: '호구', subcategory: '고급호구set' },
   { url: 'https://sehyun-kumdo.com/category/%E3%83%92%E3%83%AD%E3%83%A4/94/', category: '호구', subcategory: '고급호구set' },
   { url: 'https://sehyun-kumdo.com/category/%E8%A5%BF%E6%97%A5%E6%9C%AC%E6%AD%A6%E9%81%93%E5%85%B7/121/', category: '호구', subcategory: '고급호구set' },
@@ -187,7 +169,6 @@ const SEHYUN_URL_RULES: CU[] = [
   { url: 'https://sehyun-kumdo.com/category/busen/143/', category: '도복', subcategory: '일본산도복set' },
   { url: 'https://sehyun-kumdo.com/category/%E9%A3%AF%E7%94%B0%E6%AD%A6%E9%81%93%E5%85%B7/149/', category: '호구', subcategory: '고급호구set' },
   { url: 'https://sehyun-kumdo.com/product/list.html?cate_no=96', category: '호구', subcategory: '고급호구set' },
-
   { url: 'https://sehyun-kumdo.com/category/tsuba-dome/105/', category: '코등이/받침', subcategory: '죽도 코등이' },
   { url: 'https://sehyun-kumdo.com/category/himo/106/', category: '액세서리', subcategory: null },
   { url: 'https://sehyun-kumdo.com/category/chichikawa-men/107/', category: '액세서리', subcategory: null },
@@ -234,15 +215,6 @@ const DKUMDO_URL_RULES: CU[] = [
   { url: 'https://dkumdo.kr/product/list.html?cate_no=44', category: '도복', subcategory: null },
 ];
 
-// ============================================================
-// 2) URL 규칙만으로는 안 되는 것들
-//    예외/키워드 규칙을 여기서 관리.
-//    앞으로는 대부분 여기 3군데만 건드리면 됨.
-//    - MANUAL_RULES: 특정 예외
-//    - GLOBAL_RULES: 모든 쇼핑몰 공통 키워드
-//    - FALLBACK_RULES: 마지막 안전망
-// ============================================================
-
 const WOOCHANG_ACCESSORY_SOURCE_URLS = new Set([
   'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC-%EC%95%A1%EC%84%B8%EC%84%9C%EB%A6%AC/235/',
   'https://woochangsports.net/category/%ED%98%B8%EA%B5%AC%EC%9D%B4%EB%A6%84%ED%91%9C/278/',
@@ -253,45 +225,43 @@ const WOOCHANG_ACCESSORY_SOURCE_URLS = new Set([
   'https://woochangsports.net/category/%EA%B8%B0%ED%83%80%EC%86%8C%ED%92%88/237/',
 ]);
 
-const MANUAL_RULES: RuleDefinition[] = [
-  {
-    id: 'woochang-accessory-pages-default',
-    when: (ctx) => WOOCHANG_ACCESSORY_SOURCE_URLS.has(ctx.sourceUrl) && !/안경태|안경/.test(ctx.normalizedName),
-    result: { category: '액세서리', subcategory: null },
-  },
-  {
-    id: 'woochang-accessory-pages-glasses-to-protector-etc',
-    when: (ctx) => WOOCHANG_ACCESSORY_SOURCE_URLS.has(ctx.sourceUrl) && /안경태|안경/.test(ctx.normalizedName),
-    result: { category: '보호대', subcategory: '기타' },
-  },
-  {
-    id: 'kendomall-cate24-player-hogu-to-normal-set',
-    when: (ctx) => ctx.sourceUrl === 'https://kendomall.com/product/list.html?cate_no=24' && /선수용\s*호구/.test(ctx.normalizedName),
-    result: { category: '호구', subcategory: '일반호구set' },
-  },
-  {
-    id: 'kendomall-cate24-hanja-or-1x-to-premium-set',
-    when: (ctx) =>
-      ctx.sourceUrl === 'https://kendomall.com/product/list.html?cate_no=24' &&
-      (containsHanCharacter(ctx.normalizedName) || /(?:^|[^0-9])(1\.0|1\.2|1\.5)(?:[^0-9]|$)/.test(ctx.normalizedName)),
-    result: { category: '호구', subcategory: '고급호구set' },
-  },
-  {
-    id: 'myeonggyeong-to-accessory',
-    when: (ctx) => /명경/.test(ctx.normalizedName),
-    result: { category: '액세서리', subcategory: null },
-  },
-  {
-    id: 'heel-protectors-to-foot-protector',
-    when: (ctx) => /뒤?꿈치보호대|뒷꿈치보호대|발바닥보호대|덧신|족대신발|족대/.test(ctx.normalizedName),
-    result: { category: '보호대', subcategory: '발' },
-  },
-  {
-    id: '2-5-bun-howan-to-howan',
-    when: (ctx) => /2\.5\s*푼.*호완|호완.*2\.5\s*푼/.test(ctx.normalizedName),
-    result: { category: '호구', subcategory: '호완' },
-  },
-];
+const JAPANESE_SWORD_NAME_PATTERNS = [
+  /타이센/,
+  /금\s*도인/,
+  /금\s*무신/,
+  /금\s*변경/,
+  /금\s*인왕/,
+  /금\s*토도로키/,
+  /산케이/,
+  /죠스이/,
+  /금\s*장문/,
+  /최상청무/,
+  /용왕/,
+  /공응/,
+  /경도예산/,
+  /아수라/,
+  /태평/,
+  /^용/,
+  /기/,
+  /오도/,
+  /인왕/,
+  /젠/,
+  /무아/,
+  /의봉작/,
+  /국승/,
+  /청무별작/,
+  /금강/,
+  /위신/,
+  /수호신/,
+  /사에/,
+  /신기\s*금/,
+  /일도제/,
+  /비사문/,
+  /극/,
+  /최상/,
+  /대아/,
+  /대하/,
+] as const;
 
 const ACCESSORY_KEYWORDS = [
   /열쇠고리/,
@@ -321,6 +291,96 @@ const ACCESSORY_KEYWORDS = [
   /이름표/,
   /명패끈/,
 ] as const;
+
+const MANUAL_RULES: RuleDefinition[] = [
+  {
+    id: 'woochang-accessory-pages-default',
+    when: (ctx) => WOOCHANG_ACCESSORY_SOURCE_URLS.has(ctx.sourceUrl) && !/안경태|안경/.test(ctx.normalizedName),
+    result: { category: '액세서리', subcategory: null },
+  },
+  {
+    id: 'woochang-accessory-pages-glasses-to-protector-etc',
+    when: (ctx) => WOOCHANG_ACCESSORY_SOURCE_URLS.has(ctx.sourceUrl) && /안경태|안경/.test(ctx.normalizedName),
+    result: { category: '보호대', subcategory: '기타' },
+  },
+  {
+    id: 'skip-youth-shinai',
+    when: (ctx) => isShinaiContext(ctx) && /(유치부|초등학생|중학생|고등학생)/.test(ctx.normalizedName),
+    result: (ctx) => ({ category: ctx.category, subcategory: ctx.subcategory, skip: true }),
+  },
+  {
+    id: 'protectors-and-gloves-to-protector',
+    when: (ctx) => /면장갑|장갑|보호대/.test(ctx.normalizedName),
+    result: (ctx) => ({ category: '보호대', subcategory: guessProtectorSubcategory(ctx.normalizedName) }),
+  },
+  {
+    id: 'stand-before-weapon',
+    when: (ctx) => /좌대|거치대|스탠드/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '좌대' },
+  },
+  {
+    id: 'bokken-to-bokken',
+    when: (ctx) => /목검|목도/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '목검' },
+  },
+  {
+    id: 'gageom-to-gageom',
+    when: (ctx) => /가검/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '가검' },
+  },
+  {
+    id: 'training-shinai-to-etc',
+    when: (ctx) => isShinaiContext(ctx) && /실내연습용|연습용|훈련용/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '기타죽도' },
+  },
+  {
+    id: 'carbon-shinai-to-etc',
+    when: (ctx) => isShinaiContext(ctx) && /카본죽도|카본/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '기타죽도' },
+  },
+  {
+    id: 'female-shinai',
+    when: (ctx) => isShinaiContext(ctx) && /여성용/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '여성용죽도' },
+  },
+  {
+    id: 'match-shinai',
+    when: (ctx) => isShinaiContext(ctx) && /실전|시합/.test(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '시합용죽도' },
+  },
+  {
+    id: 'japanese-shinai-by-name',
+    when: (ctx) => isShinaiContext(ctx) && looksLikeJapaneseShinai(ctx.normalizedName),
+    result: { category: '죽도&목검&가검', subcategory: '일제죽도' },
+  },
+  {
+    id: 'kendomall-cate24-player-hogu-to-normal-set',
+    when: (ctx) => ctx.sourceUrl === 'https://kendomall.com/product/list.html?cate_no=24' && /선수용\s*호구/.test(ctx.normalizedName),
+    result: { category: '호구', subcategory: '일반호구set' },
+  },
+  {
+    id: 'kendomall-cate24-hanja-or-1x-to-premium-set',
+    when: (ctx) =>
+      ctx.sourceUrl === 'https://kendomall.com/product/list.html?cate_no=24' &&
+      (containsHanCharacter(ctx.normalizedName) || /(?:^|[^0-9])(1\.0|1\.2|1\.5)(?:[^0-9]|$)/.test(ctx.normalizedName)),
+    result: { category: '호구', subcategory: '고급호구set' },
+  },
+  {
+    id: 'myeonggyeong-to-accessory',
+    when: (ctx) => /명경/.test(ctx.normalizedName),
+    result: { category: '액세서리', subcategory: null },
+  },
+  {
+    id: 'heel-protectors-to-foot-protector',
+    when: (ctx) => /뒤?꿈치보호대|뒷꿈치보호대|발바닥보호대|덧신|족대신발|족대/.test(ctx.normalizedName),
+    result: { category: '보호대', subcategory: '발' },
+  },
+  {
+    id: '2-5-bun-howan-to-howan',
+    when: (ctx) => /2\.5\s*푼.*호완|호완.*2\.5\s*푼/.test(ctx.normalizedName),
+    result: { category: '호구', subcategory: '호완' },
+  },
+];
 
 const GLOBAL_RULES: RuleDefinition[] = [
   {
@@ -439,7 +499,7 @@ const FALLBACK_RULES: RuleDefinition[] = [
   },
   {
     id: 'fallback-homyeon',
-    when: (ctx) => /호면/.test(ctx.normalizedName),
+    when: (ctx) => /호면/.test(ctx.normalizedName) && !/호면가죽|호면마스크|호면열쇠고리/.test(ctx.normalizedName),
     result: { category: '호구', subcategory: '호면' },
   },
   {
@@ -453,11 +513,6 @@ const FALLBACK_RULES: RuleDefinition[] = [
     result: { category: '호구', subcategory: '갑' },
   },
 ];
-
-// ============================================================
-// 3) SHOP_CONFIG
-//    URL 리스트는 여기서만 연결.
-// ============================================================
 
 const SHOP_CONFIG: Record<string, { urls: CU[]; scraper: 'cafe24' | 'legacy'; encoding: 'utf-8' | 'euc-kr' }> = {
   woochangsports: { urls: WOOCHANG_URL_RULES, scraper: 'cafe24', encoding: 'utf-8' },
@@ -535,6 +590,8 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
             sourceUrl: cat.url,
           });
 
+          if (classified.skip) return;
+
           all.push({
             name,
             price: price ?? 0,
@@ -602,6 +659,8 @@ async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
           sourceUrl: cat.url,
         });
 
+        if (classified.skip) return;
+
         all.push({
           name,
           price,
@@ -665,7 +724,7 @@ function getFixedSourceClassification(sourceUrl: string): Classification | null 
 function findFirstMatchingRule(rules: RuleDefinition[], ctx: ReclassifyContext): Classification | null {
   for (const rule of rules) {
     if (rule.when(ctx)) {
-      return rule.result;
+      return typeof rule.result === 'function' ? rule.result(ctx) : rule.result;
     }
   }
   return null;
@@ -677,6 +736,42 @@ function normalizeName(name: string) {
 
 function containsHanCharacter(value: string) {
   return /[\u3400-\u9FFF]/.test(value);
+}
+
+function guessProtectorSubcategory(name: string): SubcategoryValue {
+  if (/턱땀받이/.test(name)) return '턱땀받이';
+  if (/손목/.test(name)) return '손목';
+  if (/팔꿈치/.test(name)) return '팔꿈치';
+  if (/무릎/.test(name)) return '무릎';
+  if (/발|족대|덧신|아킬레스/.test(name)) return '발';
+  if (/테이프|테이핑/.test(name)) return '테이핑';
+  return '기타';
+}
+
+function isWeaponStand(name: string) {
+  return /좌대|거치대|스탠드/.test(name);
+}
+
+function isBokkenLike(name: string) {
+  return /목검|목도/.test(name);
+}
+
+function isGageomLike(name: string) {
+  return /가검/.test(name);
+}
+
+function isShinaiContext(ctx: ReclassifyContext) {
+  if (ctx.category !== '죽도&목검&가검') return false;
+  if (isWeaponStand(ctx.normalizedName)) return false;
+  if (isBokkenLike(ctx.normalizedName)) return false;
+  if (isGageomLike(ctx.normalizedName)) return false;
+  return true;
+}
+
+function looksLikeJapaneseShinai(name: string) {
+  if (/일제|일본산/.test(name)) return true;
+  if (/알죽도/.test(name) && /일제|일본산/.test(name)) return true;
+  return JAPANESE_SWORD_NAME_PATTERNS.some((pattern) => pattern.test(name));
 }
 
 export async function runSingleShopScrape(shopKey: string) {
@@ -702,6 +797,23 @@ export async function runSingleShopScrape(shopKey: string) {
     } catch (err) {
       console.error(`[save] ${item.name}`, err instanceof Error ? err.message : err);
     }
+  }
+
+  if (products.length > 0) {
+    const activeUrls = Array.from(new Set(products.map((item) => item.productUrl)));
+
+    await prisma.kendoProductPrice.deleteMany({
+      where: {
+        shopId: shop.id,
+        productUrl: { notIn: activeUrls }
+      }
+    });
+
+    await prisma.kendoProduct.deleteMany({
+      where: {
+        prices: { none: {} }
+      }
+    });
   }
 
   return { shopKey, scraped: products.length, saved };
