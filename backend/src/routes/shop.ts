@@ -220,6 +220,215 @@ router.post('/admin/seed-shops', async (req, res, next) => {
   }
 });
 
+router.get('/admin/stats', async (req, res, next) => {
+  try {
+    const secret = req.header('X-Approval-Reminder-Secret')?.trim();
+    const envSecret = process.env.APPROVAL_REMINDER_SECRET?.trim();
+
+    if (!envSecret || secret !== envSecret) {
+      res.status(403).json({ message: '권한이 없습니다.' });
+      return;
+    }
+
+    const shopKey = sanitizeNullableString(req.query.shopKey);
+
+    const targetShop = shopKey
+      ? await prisma.kendoShop.findUnique({ where: { key: shopKey } })
+      : null;
+
+    if (shopKey && !targetShop) {
+      res.status(404).json({ message: '해당 shopKey를 찾을 수 없습니다.' });
+      return;
+    }
+
+    const shops = await prisma.kendoShop.findMany({
+      where: targetShop ? { id: targetShop.id } : { isActive: true },
+      orderBy: { name: 'asc' }
+    });
+
+    const products = await prisma.kendoProduct.findMany({
+      where: targetShop
+        ? { prices: { some: { shopId: targetShop.id } } }
+        : { prices: { some: {} } },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        subcategory: true,
+        updatedAt: true,
+        prices: {
+          where: targetShop ? { shopId: targetShop.id } : undefined,
+          select: {
+            shopId: true,
+            price: true,
+            inStock: true,
+            productUrl: true,
+            lastScrapedAt: true,
+            shop: {
+              select: {
+                key: true,
+                name: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const shopMap = new Map<
+      string,
+      {
+        shopId: string;
+        shopKey: string;
+        shopName: string;
+        distinctProductCount: number;
+        priceRowCount: number;
+        pricedRowCount: number;
+        inStockRowCount: number;
+        latestScrapedAt: string | null;
+      }
+    >();
+
+    for (const shop of shops) {
+      shopMap.set(shop.id, {
+        shopId: shop.id,
+        shopKey: shop.key,
+        shopName: shop.name,
+        distinctProductCount: 0,
+        priceRowCount: 0,
+        pricedRowCount: 0,
+        inStockRowCount: 0,
+        latestScrapedAt: null
+      });
+    }
+
+    const categoryMap = new Map<string, number>();
+    const subcategoryMap = new Map<string, { category: string; subcategory: string | null; count: number }>();
+    const shopCategoryMap = new Map<
+      string,
+      {
+        shopKey: string;
+        shopName: string;
+        category: string;
+        subcategory: string | null;
+        count: number;
+      }
+    >();
+
+    let totalPriceRowCount = 0;
+
+    for (const product of products) {
+      categoryMap.set(product.category, (categoryMap.get(product.category) ?? 0) + 1);
+
+      const subcategoryKey = `${product.category}__${product.subcategory ?? ''}`;
+      const subcategoryEntry = subcategoryMap.get(subcategoryKey);
+      if (subcategoryEntry) {
+        subcategoryEntry.count += 1;
+      } else {
+        subcategoryMap.set(subcategoryKey, {
+          category: product.category,
+          subcategory: product.subcategory,
+          count: 1
+        });
+      }
+
+      const seenShopIds = new Set<string>();
+
+      for (const priceRow of product.prices) {
+        totalPriceRowCount += 1;
+
+        if (!shopMap.has(priceRow.shopId)) {
+          shopMap.set(priceRow.shopId, {
+            shopId: priceRow.shopId,
+            shopKey: priceRow.shop.key,
+            shopName: priceRow.shop.name,
+            distinctProductCount: 0,
+            priceRowCount: 0,
+            pricedRowCount: 0,
+            inStockRowCount: 0,
+            latestScrapedAt: null
+          });
+        }
+
+        const shopEntry = shopMap.get(priceRow.shopId)!;
+        shopEntry.priceRowCount += 1;
+
+        if (typeof priceRow.price === 'number' && priceRow.price > 0) {
+          shopEntry.pricedRowCount += 1;
+        }
+
+        if (priceRow.inStock) {
+          shopEntry.inStockRowCount += 1;
+        }
+
+        if (priceRow.lastScrapedAt) {
+          const scrapedAtIso = priceRow.lastScrapedAt.toISOString();
+          if (!shopEntry.latestScrapedAt || scrapedAtIso > shopEntry.latestScrapedAt) {
+            shopEntry.latestScrapedAt = scrapedAtIso;
+          }
+        }
+
+        if (!seenShopIds.has(priceRow.shopId)) {
+          seenShopIds.add(priceRow.shopId);
+          shopEntry.distinctProductCount += 1;
+
+          const shopCategoryKey = `${priceRow.shop.key}__${product.category}__${product.subcategory ?? ''}`;
+          const shopCategoryEntry = shopCategoryMap.get(shopCategoryKey);
+
+          if (shopCategoryEntry) {
+            shopCategoryEntry.count += 1;
+          } else {
+            shopCategoryMap.set(shopCategoryKey, {
+              shopKey: priceRow.shop.key,
+              shopName: priceRow.shop.name,
+              category: product.category,
+              subcategory: product.subcategory,
+              count: 1
+            });
+          }
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      filter: {
+        shopKey: targetShop?.key ?? null
+      },
+      totals: {
+        registeredShopCount: shops.length,
+        visibleProductCount: products.length,
+        totalPriceRowCount,
+        categoryCount: categoryMap.size,
+        subcategoryCount: subcategoryMap.size
+      },
+      byShop: Array.from(shopMap.values()).sort((a, b) => {
+        if (b.distinctProductCount !== a.distinctProductCount) {
+          return b.distinctProductCount - a.distinctProductCount;
+        }
+        return a.shopName.localeCompare(b.shopName, 'ko');
+      }),
+      byCategory: Array.from(categoryMap.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category, 'ko')),
+      bySubcategory: Array.from(subcategoryMap.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        if (a.category !== b.category) return a.category.localeCompare(b.category, 'ko');
+        return (a.subcategory ?? '').localeCompare(b.subcategory ?? '', 'ko');
+      }),
+      byShopCategory: Array.from(shopCategoryMap.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        if (a.shopName !== b.shopName) return a.shopName.localeCompare(b.shopName, 'ko');
+        if (a.category !== b.category) return a.category.localeCompare(b.category, 'ko');
+        return (a.subcategory ?? '').localeCompare(b.subcategory ?? '', 'ko');
+      })
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ───── Serializers ─────
 function serializeProductSummary(product: {
   id: string;
