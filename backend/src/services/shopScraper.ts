@@ -87,6 +87,13 @@ type RuleDefinition = {
   result: Classification | ((ctx: ReclassifyContext) => Classification);
 };
 
+type ScrapeRunOptions = {
+  startIndex?: number;
+  endIndex?: number;
+  dryRun?: boolean;
+  includeDiagnostics?: boolean;
+};
+
 const SHOP_SEEDS = [
   { key: 'kumdoshop', name: '검도샵', baseUrl: 'http://www.kumdoshop.co.kr' },
   { key: 'kumdomall', name: '검도몰', baseUrl: 'http://www.kumdomall.co.kr' },
@@ -1096,57 +1103,94 @@ function looksLikeJapaneseShinai(name: string) {
   return JAPANESE_SWORD_NAME_PATTERNS.some((pattern) => pattern.test(name));
 }
 
-export async function runSingleShopScrape(shopKey: string) {
-  const c = SHOP_CONFIG[shopKey];
-  if (!c) return { shopKey, error: 'unknown', scraped: 0, saved: 0 };
+export async function runSingleShopScrape(
+  shopKey: string,
+  options: ScrapeRunOptions = {}
+) {
+  const config = SHOP_CONFIG[shopKey];
+  if (!config) return { shopKey, error: 'unknown', scraped: 0, saved: 0 };
 
   const shop = await prisma.kendoShop.findUnique({ where: { key: shopKey } });
   if (!shop) return { shopKey, error: 'not-found', scraped: 0, saved: 0 };
 
-  const urls = c.urls;
+  const allUrls = config.urls;
+  const startIndex = Math.max(0, options.startIndex ?? 0);
+  const endIndex = Math.min(allUrls.length - 1, options.endIndex ?? allUrls.length - 1);
+  const urls = allUrls.slice(startIndex, endIndex + 1);
+
+  const dryRun = options.dryRun === true;
+  const includeDiagnostics = options.includeDiagnostics !== false;
+  const isPartial = startIndex !== 0 || endIndex !== allUrls.length - 1;
+
   if (!urls.length) {
-    return {
+    const empty = {
       shopKey,
+      startIndex,
+      endIndex,
+      dryRun,
       scraped: 0,
-      saved: 0,
-      diagnostics: createShopDiagnostics(shopKey, urls)
+      saved: 0
     };
+
+    return includeDiagnostics
+      ? { ...empty, diagnostics: createShopDiagnostics(shopKey, urls) }
+      : empty;
   }
 
   const scrapeResult =
-    c.scraper === 'cafe24'
-      ? await scrapeCafe24(shopKey, shop.baseUrl, urls, c.encoding)
+    config.scraper === 'cafe24'
+      ? await scrapeCafe24(shopKey, shop.baseUrl, urls, config.encoding)
       : await scrapeLegacy(shopKey, shop.baseUrl, urls);
 
   const products = scrapeResult.products;
   const diagnostics = scrapeResult.diagnostics;
 
   let saved = 0;
-  for (const i of products) {
-    try {
-      await upsertScrapedProduct(shop.id, i);
-      saved++;
-    } catch (e) {
-      diagnostics.saveErrorCount += 1;
-      console.error(`[s] ${i.name}`, e instanceof Error ? e.message : e);
+
+  if (!dryRun) {
+    for (const item of products) {
+      try {
+        await upsertScrapedProduct(shop.id, item);
+        saved++;
+      } catch (err) {
+        diagnostics.saveErrorCount += 1;
+        console.error(`[save] ${item.name}`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    // 전체 shop scrape일 때만 정리
+    if (products.length > 0 && !isPartial) {
+      const activeUrls = Array.from(
+        new Set(products.map((item) => item.productUrl.trim().toLowerCase()))
+      );
+
+      await prisma.kendoProductPrice.deleteMany({
+        where: {
+          shopId: shop.id,
+          productUrl: { notIn: activeUrls }
+        }
+      });
+
+      await prisma.kendoProduct.deleteMany({
+        where: {
+          prices: { none: {} }
+        }
+      });
     }
   }
 
-  if (products.length > 0) {
-    const activeUrls = Array.from(new Set(products.map((x) => x.productUrl.trim().toLowerCase())));
-    await prisma.kendoProductPrice.deleteMany({
-      where: { shopId: shop.id, productUrl: { notIn: activeUrls } }
-    });
-    await cleanupDuplicateShopProducts(shop.id);
-    await prisma.kendoProduct.deleteMany({ where: { prices: { none: {} } } });
-  }
-
-  return {
+  const resultBase = {
     shopKey,
+    startIndex,
+    endIndex,
+    dryRun,
     scraped: products.length,
-    saved,
-    diagnostics
+    saved
   };
+
+  return includeDiagnostics
+    ? { ...resultBase, diagnostics }
+    : resultBase;
 }
 
 export async function runFullScrape() {

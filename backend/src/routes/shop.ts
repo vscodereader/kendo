@@ -186,15 +186,35 @@ router.post('/admin/scrape', async (req, res, next) => {
       return;
     }
 
-    const shopKey = sanitizeNullableString(req.body?.shopKey);
+    const shopKey = typeof req.body?.shopKey === 'string' ? req.body.shopKey.trim() : undefined;
+
+    const startIndex =
+      typeof req.body?.startIndex === 'number' && Number.isInteger(req.body.startIndex)
+        ? req.body.startIndex
+        : undefined;
+
+    const endIndex =
+      typeof req.body?.endIndex === 'number' && Number.isInteger(req.body.endIndex)
+        ? req.body.endIndex
+        : undefined;
+
+    const dryRun = req.body?.dryRun === true;
+    const includeDiagnostics = req.body?.includeDiagnostics !== false;
 
     if (shopKey) {
-      const result = await runSingleShopScrape(shopKey);
+      const result = await runSingleShopScrape(shopKey, {
+        startIndex,
+        endIndex,
+        dryRun,
+        includeDiagnostics
+      });
+
       res.json({ ok: true, result });
-    } else {
-      const result = await runFullScrape();
-      res.json({ ok: true, result });
+      return;
     }
+
+    const result = await runFullScrape();
+    res.json({ ok: true, result });
   } catch (error) {
     next(error);
   }
