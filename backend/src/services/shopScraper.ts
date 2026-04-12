@@ -306,6 +306,21 @@ const MANUAL_RULES: RuleDefinition[] = [
     result: { category: '보호대', subcategory: '기타' },
   },
   {
+    id: 'skip-baby-dobok',
+    when: (ctx) => /아기\s*돌복|아기돌복/.test(ctx.normalizedName),
+    result: { category: '도복', subcategory: '고급도복set', skip: true },
+  },
+  {
+    id: 'homyeon-protector-to-homyeon',
+    when: (ctx) => /호면.*보호대|보호대.*호면|관자부.*호면|보호호면/.test(ctx.normalizedName),
+    result: { category: '호구', subcategory: '호면' },
+  },
+  {
+    id: 'mokgeom-koddeungi-by-keywords',
+    when: (ctx) => /목검\s*코등이|목검용.*코등이|코등이.*목검용|목도용.*코등이|코등이.*목도용|목검.*코등이받침|목검용.*코등이받침|목검코등/.test(ctx.normalizedName),
+    result: { category: '코등이/받침', subcategory: '목검 코등이' },
+  },
+  {
     id: 'skip-youth-shinai',
     when: (ctx) => isShinaiContext(ctx) && /(유치부|초등학생|중학생|고등학생)/.test(ctx.normalizedName),
     result: (ctx) => ({ category: ctx.category, subcategory: ctx.subcategory, skip: true }),
@@ -322,7 +337,7 @@ const MANUAL_RULES: RuleDefinition[] = [
   },
   {
     id: 'bokken-to-bokken',
-    when: (ctx) => /목검|목도/.test(ctx.normalizedName),
+    when: (ctx) => /목검|목도/.test(ctx.normalizedName) && !/코등이/.test(ctx.normalizedName),
     result: { category: '죽도&목검&가검', subcategory: '목검' },
   },
   {
@@ -400,6 +415,34 @@ const GLOBAL_RULES: RuleDefinition[] = [
     result: { category: '액세서리', subcategory: null },
   },
   {
+    id: 'functional-dobok',
+    when: (ctx) => /여름도복|쿨\s*도복|기능성\s*도복|기능성/.test(ctx.normalizedName),
+    result: { category: '도복', subcategory: '기능성도복set' },
+  },
+  {
+    id: 'normal-dobok-set',
+    when: (ctx) => /일반도복.*(세트|셋트)|일반.*도복세트|선수용도복-세트|선수용도복세트/.test(ctx.normalizedName),
+    result: { category: '도복', subcategory: '일반도복set' },
+  },
+  {
+    id: 'dobok-mixed-bag-nameplate-referee',
+    when: (ctx) => ctx.category === '도복' && /(가방|백팩|심판기|명패)/.test(ctx.normalizedName),
+    result: (ctx) => {
+      if (/가방|백팩/.test(ctx.normalizedName)) {
+        return {
+          category: '죽도집&가방류',
+          subcategory: /(호구.*가방|호구가방)/.test(ctx.normalizedName) ? '호구가방' : '기타가방'
+        };
+      }
+
+      if (/명패/.test(ctx.normalizedName)) {
+        return { category: '호구', subcategory: '명패' };
+      }
+
+      return { category: '액세서리', subcategory: null };
+    },
+  },
+  {
     id: 'uniform-top',
     when: (ctx) => /상의/.test(ctx.normalizedName) && !/(호구|죽도|가검|목검|보호)/.test(ctx.normalizedName),
     result: { category: '도복', subcategory: '도복상의' },
@@ -430,15 +473,25 @@ const GLOBAL_RULES: RuleDefinition[] = [
     result: { category: '죽도집&가방류', subcategory: '죽도집/목검집' },
   },
   {
+    id: 'other-tenugui-hat',
+    when: (ctx) => /모자면수건|면모자/.test(ctx.normalizedName),
+    result: { category: '면수건', subcategory: '기타면수건' },
+  },
+  {
     id: 'japanese-tenugui',
     when: (ctx) =>
-      /면수건/.test(ctx.normalizedName) &&
+      /(면수건|잘자리)/.test(ctx.normalizedName) &&
       /(일제|일본산|이원염|안보|부슈이치|마츠칸|나카지마|산케이|가제|busen|matsukan)/i.test(ctx.normalizedName),
     result: { category: '면수건', subcategory: '일본산면수건' },
   },
   {
+    id: 'kendomall-cate86-hanja-tenugui-to-japan',
+    when: (ctx) => ctx.sourceUrl === 'https://kendomall.com/product/list.html?cate_no=86' && (containsHanCharacter(ctx.normalizedName) || /잘자리/.test(ctx.normalizedName)),
+    result: { category: '면수건', subcategory: '일본산면수건' },
+  },
+  {
     id: 'basic-tenugui',
-    when: (ctx) => /면수건/.test(ctx.normalizedName),
+    when: (ctx) => /(면수건|잘자리)/.test(ctx.normalizedName),
     result: { category: '면수건', subcategory: '일반면수건' },
   },
   {
@@ -458,12 +511,12 @@ const GLOBAL_RULES: RuleDefinition[] = [
   },
   {
     id: 'protector-knee',
-    when: (ctx) => /무릎/.test(ctx.normalizedName),
+    when: (ctx) => /무릎|무릅/.test(ctx.normalizedName),
     result: { category: '보호대', subcategory: '무릎' },
   },
   {
     id: 'protector-foot',
-    when: (ctx) => /(덧신|족대|뒷꿈치|발바닥|발.*보호)/.test(ctx.normalizedName),
+    when: (ctx) => /(덧신|족대|족대신발|뒷?꿈치|발바닥|발.*보호|아킬레스|다리근육)/.test(ctx.normalizedName),
     result: { category: '보호대', subcategory: '발' },
   },
   {
@@ -478,17 +531,17 @@ const GLOBAL_RULES: RuleDefinition[] = [
   },
   {
     id: 'koddeungi-dome',
-    when: (ctx) => /코등이받침|츠바도메/.test(ctx.normalizedName),
+    when: (ctx) => /코등이받침|코등이 받침|츠바도메|츠바도매|쓰바도메|쓰바도매/.test(ctx.normalizedName) && !/(목검|목도)/.test(ctx.normalizedName),
     result: { category: '코등이/받침', subcategory: '죽도 코등이받침' },
   },
   {
     id: 'mokgeom-koddeungi',
-    when: (ctx) => /목검.*코등이/.test(ctx.normalizedName),
+    when: (ctx) => /목검.*코등이|목검용.*코등이|코등이.*목검용|목도용.*코등이|코등이.*목도용/.test(ctx.normalizedName),
     result: { category: '코등이/받침', subcategory: '목검 코등이' },
   },
   {
     id: 'jookdo-koddeungi',
-    when: (ctx) => /코등이/.test(ctx.normalizedName),
+    when: (ctx) => /코등이/.test(ctx.normalizedName) && !/(목검|목도)/.test(ctx.normalizedName),
     result: { category: '코등이/받침', subcategory: '죽도 코등이' },
   },
 ];
@@ -558,29 +611,71 @@ function getCafe24Candidates($doc: cheerio.CheerioAPI) {
     const href =
       $el.find('a[href*="product/detail"], a[href*="product_no="], a[href*="/product/"]').first().attr('href') ?? '';
 
-    const text = $el.text().replace(/\s+/g, ' ').trim();
+    const text = normalizeName($el.text());
+    const hasImage = $el.find('img').length > 0;
+    const hasPrice = /판매가\s*:|원|가격문의|문의/.test(text);
 
-    if (href.includes('product_no=')) return true;
-    if (/상품명\s*:/.test(text)) return true;
-
-    return false;
+    return hasImage && hasPrice && (href.includes('product_no=') || /상품명\s*:/.test(text));
   });
 }
 
 function extractCafe24ProductName($el: any) {
-  const directName = (
-    $el.find('.name a, .name span, .prd_name a, .item_name a').first().text() ?? ''
-  )
-    .replace(/^상품명\s*:\s*/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const directName = normalizeName(
+    ($el.find('.name a, .name span, .prd_name a, .item_name a').first().text() ?? '')
+      .replace(/^상품명\s*:\s*/, '')
+  );
 
   if (directName) return directName;
 
-  const cardText = $el.text().replace(/\s+/g, ' ').trim();
-  const match = cardText.match(/상품명\s*:\s*(.+?)(?=\s*(?:제조사|판매가|소비자가|적립금|상품코드|$))/);
+  const cardText = normalizeName($el.text());
+  const match = cardText.match(/상품명\s*:\s*(.+?)(?=\s*(?:제조사|판매가|소비자가|적립금|상품코드|배송비|$))/);
 
-  return match?.[1]?.trim() ?? '';
+  return normalizeName(match?.[1] ?? '');
+}
+
+function dedupeScrapedProducts(products: SP[]) {
+  const seen = new Map<string, SP>();
+
+  for (const item of products) {
+    const key = (item.productUrl || `${genSlug(item.name)}|${item.price}|${item.imageUrl ?? ''}`).trim().toLowerCase();
+    const current = seen.get(key);
+
+    if (!current) {
+      seen.set(key, item);
+      continue;
+    }
+
+    if (normalizeName(item.name).length > normalizeName(current.name).length) {
+      seen.set(key, item);
+    }
+  }
+
+  return Array.from(seen.values());
+}
+
+async function cleanupDuplicateShopProducts(shopId: string) {
+  const rows = await prisma.kendoProductPrice.findMany({
+    where: { shopId },
+    orderBy: { lastScrapedAt: 'desc' },
+    select: { id: true, productUrl: true }
+  });
+
+  const keep = new Set<string>();
+  const deleteIds: string[] = [];
+
+  for (const row of rows) {
+    const key = (row.productUrl ?? '').trim().toLowerCase();
+    if (!key) continue;
+
+    if (keep.has(key)) deleteIds.push(row.id);
+    else keep.add(key);
+  }
+
+  if (deleteIds.length) {
+    await prisma.kendoProductPrice.deleteMany({ where: { id: { in: deleteIds } } });
+  }
+
+  await prisma.kendoProduct.deleteMany({ where: { prices: { none: {} } } });
 }
 
 
@@ -605,7 +700,7 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
           const name = extractCafe24ProductName($el);
           if (!name) return;
 
-          const spec = $el.find('.spec, .mun, p.price, .xans-product-listitem-price').first().text() ?? '';
+          const spec = normalizeName($el.find('.spec, .mun, p.price, .xans-product-listitem-price').first().text() ?? '');
           const priceMatch = spec.match(/판매가\s*:\s*([\d,]+)/);
           const priceText = priceMatch ? priceMatch[1] : ($el.find('.price span, .sale_price').first().text() ?? '');
           const price = parsePrice(priceText);
@@ -631,7 +726,7 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
           if (classified.skip) return;
 
           all.push({
-            name,
+            name: normalizeName(name),
             price: price ?? 0,
             originalPrice: null,
             imageUrl,
@@ -657,7 +752,7 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
     }
   }
 
-  return all;
+  return dedupeScrapedProducts(all);
 }
 
 async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
@@ -676,7 +771,7 @@ async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
           ''
         ).trim();
 
-        const name = raw.replace(/^상품명\s*:\s*/, '').replace(/\s+/g, ' ').trim();
+        const name = normalizeName(raw.replace(/^상품명\s*:\s*/, ''));
         if (!name || name.length < 2) return;
 
         const priceMatch = $el.text().match(/([\d,]+)\s*원/);
@@ -700,7 +795,7 @@ async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
         if (classified.skip) return;
 
         all.push({
-          name,
+          name: normalizeName(name),
           price,
           originalPrice: null,
           imageUrl,
@@ -715,7 +810,7 @@ async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
     }
   }
 
-  return all;
+  return dedupeScrapedProducts(all);
 }
 
 function reclassify(input: {
@@ -769,7 +864,11 @@ function findFirstMatchingRule(rules: RuleDefinition[], ctx: ReclassifyContext):
 }
 
 function normalizeName(name: string) {
-  return name.replace(/\s+/g, ' ').trim();
+  return (name ?? '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function containsHanCharacter(value: string) {
@@ -780,8 +879,8 @@ function guessProtectorSubcategory(name: string): SubcategoryValue {
   if (/턱땀받이/.test(name)) return '턱땀받이';
   if (/손목/.test(name)) return '손목';
   if (/팔꿈치/.test(name)) return '팔꿈치';
-  if (/무릎/.test(name)) return '무릎';
-  if (/발|족대|덧신|아킬레스/.test(name)) return '발';
+  if (/무릎|무릅/.test(name)) return '무릎';
+  if (/뒤?꿈치|뒷꿈치|발바닥|덧신|족대|족대신발|아킬레스|다리근육|발.*보호/.test(name)) return '발';
   if (/테이프|테이핑/.test(name)) return '테이핑';
   return '기타';
 }
@@ -822,10 +921,12 @@ export async function runSingleShopScrape(shopKey: string) {
   const urls = config.urls;
   if (!urls.length) return { shopKey, scraped: 0, saved: 0 };
 
-  const products =
+  const scrapedProducts =
     config.scraper === 'cafe24'
       ? await scrapeCafe24(shop.baseUrl, urls, config.encoding)
       : await scrapeLegacy(shop.baseUrl, urls);
+
+  const products = dedupeScrapedProducts(scrapedProducts);
 
   let saved = 0;
   for (const item of products) {
@@ -846,6 +947,8 @@ export async function runSingleShopScrape(shopKey: string) {
         productUrl: { notIn: activeUrls }
       }
     });
+
+    await cleanupDuplicateShopProducts(shop.id);
 
     await prisma.kendoProduct.deleteMany({
       where: {
@@ -869,14 +972,22 @@ export async function runFullScrape() {
 }
 
 async function upsertScrapedProduct(shopId: string, item: SP) {
-  const slug = genSlug(item.name);
+  const normalizedName = normalizeName(item.name);
+  const slug = genSlug(normalizedName);
 
-  let product = await prisma.kendoProduct.findUnique({ where: { slug } });
+  const existingByUrl = item.productUrl
+    ? await prisma.kendoProductPrice.findFirst({
+        where: { shopId, productUrl: item.productUrl },
+        include: { product: true }
+      })
+    : null;
+
+  let product = existingByUrl?.product ?? await prisma.kendoProduct.findUnique({ where: { slug } });
 
   if (!product) {
     product = await prisma.kendoProduct.create({
       data: {
-        name: item.name,
+        name: normalizedName,
         slug,
         category: item.category,
         subcategory: item.subcategory,
@@ -887,7 +998,7 @@ async function upsertScrapedProduct(shopId: string, item: SP) {
     product = await prisma.kendoProduct.update({
       where: { id: product.id },
       data: {
-        name: item.name,
+        name: normalizedName,
         category: item.category,
         subcategory: item.subcategory,
         imageUrl: item.imageUrl ?? product.imageUrl,
