@@ -38,6 +38,41 @@ type SP = {
   shippingFee: number | null;
 };
 
+type SkipReasonCounter = Record<string, number>;
+
+type UrlScrapeDiagnostics = {
+  url: string;
+  category: string;
+  subcategory: string | null;
+  pagesAttempted: number;
+  pagesSucceeded: number;
+  rawCardCount: number;
+  acceptedCount: number;
+  skippedCount: number;
+  skipReasons: SkipReasonCounter;
+  lastError: string | null;
+};
+
+type ShopScrapeDiagnostics = {
+  shopKey: string;
+  urlCount: number;
+  pagesAttempted: number;
+  pagesSucceeded: number;
+  pageErrorCount: number;
+  rawCardCount: number;
+  acceptedCount: number;
+  skippedCount: number;
+  saveErrorCount: number;
+  skipReasons: SkipReasonCounter;
+  lastPageError: string | null;
+  byUrl: UrlScrapeDiagnostics[];
+};
+
+type ScrapeExecutionResult = {
+  products: SP[];
+  diagnostics: ShopScrapeDiagnostics;
+};
+
 type ReclassifyContext = {
   name: string;
   normalizedName: string;
@@ -604,6 +639,76 @@ async function fetchPage(url: string, encoding: 'utf-8' | 'euc-kr' = 'utf-8') {
     : Buffer.from(response.data).toString('utf-8');
 }
 
+function createUrlDiagnostics(cat: CU): UrlScrapeDiagnostics {
+  return {
+    url: cat.url,
+    category: cat.category,
+    subcategory: cat.subcategory,
+    pagesAttempted: 0,
+    pagesSucceeded: 0,
+    rawCardCount: 0,
+    acceptedCount: 0,
+    skippedCount: 0,
+    skipReasons: {},
+    lastError: null
+  };
+}
+
+function createShopDiagnostics(shopKey: string, urls: CU[]): ShopScrapeDiagnostics {
+  return {
+    shopKey,
+    urlCount: urls.length,
+    pagesAttempted: 0,
+    pagesSucceeded: 0,
+    pageErrorCount: 0,
+    rawCardCount: 0,
+    acceptedCount: 0,
+    skippedCount: 0,
+    saveErrorCount: 0,
+    skipReasons: {},
+    lastPageError: null,
+    byUrl: urls.map((cat) => createUrlDiagnostics(cat))
+  };
+}
+
+function incrementCounter(counter: SkipReasonCounter, key: string, amount = 1) {
+  counter[key] = (counter[key] ?? 0) + amount;
+}
+
+function recordRawCards(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics, count: number) {
+  shopDiagnostics.rawCardCount += count;
+  urlDiagnostics.rawCardCount += count;
+}
+
+function recordAccepted(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics) {
+  shopDiagnostics.acceptedCount += 1;
+  urlDiagnostics.acceptedCount += 1;
+}
+
+function recordSkipped(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics, reason: string) {
+  shopDiagnostics.skippedCount += 1;
+  urlDiagnostics.skippedCount += 1;
+  incrementCounter(shopDiagnostics.skipReasons, reason);
+  incrementCounter(urlDiagnostics.skipReasons, reason);
+}
+
+function recordPageAttempt(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics) {
+  shopDiagnostics.pagesAttempted += 1;
+  urlDiagnostics.pagesAttempted += 1;
+}
+
+function recordPageSuccess(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics) {
+  shopDiagnostics.pagesSucceeded += 1;
+  urlDiagnostics.pagesSucceeded += 1;
+}
+
+function recordPageError(shopDiagnostics: ShopScrapeDiagnostics, urlDiagnostics: UrlScrapeDiagnostics, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  shopDiagnostics.pageErrorCount += 1;
+  shopDiagnostics.lastPageError = message;
+  urlDiagnostics.lastError = message;
+}
+
 function getCafe24Candidates($doc: cheerio.CheerioAPI) {
   return $doc('li').filter((_, el) => {
     const $el = $doc(el);
@@ -679,34 +784,60 @@ async function cleanupDuplicateShopProducts(shopId: string) {
 }
 
 
-async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'euc-kr' = 'utf-8'): Promise<SP[]> {
+async function scrapeCafe24(
+  shopKey: string,
+  baseUrl: string,
+  urls: CU[],
+  encoding: 'utf-8' | 'euc-kr' = 'utf-8'
+): Promise<ScrapeExecutionResult> {
   const all: SP[] = [];
+  const diagnostics = createShopDiagnostics(shopKey, urls);
 
-  for (const cat of urls) {
+  for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
+    const cat = urls[urlIndex];
+    const urlDiagnostics = diagnostics.byUrl[urlIndex];
+
     try {
+      recordPageAttempt(diagnostics, urlDiagnostics);
       const html = await fetchPage(cat.url, encoding);
+      recordPageSuccess(diagnostics, urlDiagnostics);
       const $ = cheerio.load(html);
 
       let maxPage = 1;
       $('a[href*="page="]').each((_, el) => {
-        const match = ($(el).attr('href') ?? '').match(/page=(\d+)/);
-        if (match) maxPage = Math.max(maxPage, Number(match[1]));
+        const m = ($(el).attr('href') ?? '').match(/page=(\d+)/);
+        if (m) maxPage = Math.max(maxPage, Number(m[1]));
       });
 
-      const parse = ($doc: cheerio.CheerioAPI) => {
-        const candidates = getCafe24Candidates($doc);
+      const parse = ($d: cheerio.CheerioAPI) => {
+        const candidates = getCafe24Candidates($d);
+        recordRawCards(diagnostics, urlDiagnostics, candidates.length);
+
         candidates.each((_, el) => {
-          const $el = $doc(el);
+          const $el = $d(el);
+
           const name = extractCafe24ProductName($el);
-          if (!name) return;
+          if (!name) {
+            recordSkipped(diagnostics, urlDiagnostics, 'missing_name');
+            return;
+          }
 
-          const spec = normalizeName($el.find('.spec, .mun, p.price, .xans-product-listitem-price').first().text() ?? '');
-          const priceMatch = spec.match(/판매가\s*:\s*([\d,]+)/);
-          const priceText = priceMatch ? priceMatch[1] : ($el.find('.price span, .sale_price').first().text() ?? '');
-          const price = parsePrice(priceText);
-          if (!price && !/가격문의|문의/.test(spec)) return;
+          const spec = normalizeName(
+            $el.find('.spec, .mun, p.price, .xans-product-listitem-price').first().text() ?? ''
+          );
+          const pm = spec.match(/판매가\s*:\s*([\d,]+)/);
+          const pt = pm ? pm[1] : ($el.find('.price span, .sale_price').first().text() ?? '');
+          const price = parsePrice(pt);
 
-          const img = $el.find('img').first().attr('src') ?? $el.find('img').first().attr('data-src') ?? null;
+          if (!price && !/가격문의|문의/.test(spec)) {
+            recordSkipped(diagnostics, urlDiagnostics, 'missing_price');
+            return;
+          }
+
+          const img =
+            $el.find('img').first().attr('src') ??
+            $el.find('img').first().attr('data-src') ??
+            null;
           const imageUrl = img ? resolveUrl(baseUrl, img) : null;
 
           const href =
@@ -714,16 +845,25 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
             $el.find('a').first().attr('href') ??
             '';
           const productUrl = href ? resolveUrl(baseUrl, href) : '';
-          if (!productUrl) return;
 
-          const classified = reclassify({
+          if (!productUrl) {
+            recordSkipped(diagnostics, urlDiagnostics, 'missing_product_url');
+            return;
+          }
+
+          const f = reclassify({
             name,
             category: cat.category,
             subcategory: cat.subcategory,
-            sourceUrl: cat.url,
+            sourceUrl: cat.url
           });
 
-          if (classified.skip) return;
+          if (f.skip) {
+            recordSkipped(diagnostics, urlDiagnostics, 'rule:skip');
+            return;
+          }
+
+          recordAccepted(diagnostics, urlDiagnostics);
 
           all.push({
             name: normalizeName(name),
@@ -731,8 +871,8 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
             originalPrice: null,
             imageUrl,
             productUrl,
-            category: classified.category,
-            subcategory: classified.subcategory,
+            category: f.category,
+            subcategory: f.subcategory,
             shippingFee: null
           });
         });
@@ -740,59 +880,100 @@ async function scrapeCafe24(baseUrl: string, urls: CU[], encoding: 'utf-8' | 'eu
 
       parse($);
 
-      for (let page = 2; page <= Math.min(maxPage, 10); page++) {
+      for (let p = 2; p <= Math.min(maxPage, 10); p++) {
         try {
-          const separator = cat.url.includes('?') ? '&' : '?';
-          const nextHtml = await fetchPage(`${cat.url}${separator}page=${page}`, encoding);
+          recordPageAttempt(diagnostics, urlDiagnostics);
+          const sep = cat.url.includes('?') ? '&' : '?';
+          const nextHtml = await fetchPage(`${cat.url}${sep}page=${p}`, encoding);
+          recordPageSuccess(diagnostics, urlDiagnostics);
           parse(cheerio.load(nextHtml));
-        } catch {}
+        } catch (err) {
+          recordPageError(diagnostics, urlDiagnostics, err);
+          console.error(`[scrape] ${cat.url} page=${p}`, err instanceof Error ? err.message : err);
+        }
       }
     } catch (err) {
+      recordPageError(diagnostics, urlDiagnostics, err);
       console.error(`[scrape] ${cat.url}`, err instanceof Error ? err.message : err);
     }
   }
 
-  return dedupeScrapedProducts(all);
+  return {
+    products: dedupeScrapedProducts(all),
+    diagnostics
+  };
 }
 
-async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
+async function scrapeLegacy(
+  shopKey: string,
+  baseUrl: string,
+  urls: CU[]
+): Promise<ScrapeExecutionResult> {
   const all: SP[] = [];
+  const diagnostics = createShopDiagnostics(shopKey, urls);
 
-  for (const cat of urls) {
+  for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
+    const cat = urls[urlIndex];
+    const urlDiagnostics = diagnostics.byUrl[urlIndex];
+
     try {
+      recordPageAttempt(diagnostics, urlDiagnostics);
       const html = await fetchPage(cat.url, 'euc-kr');
+      recordPageSuccess(diagnostics, urlDiagnostics);
       const $ = cheerio.load(html);
 
-      $('table.MK_product_list tr, li[id^="anchorBoxId_"], div.item_box, .brand_prd_box li, ul.prdList li, .xans-product-listnormal li').each((_, el) => {
-        const $el = $(el);
-        const raw = (
-          $el.find('a[href*="shopdetail"], a[href*="product_detail"]').first().text() ??
-          $el.find('.name a, .prd_name a').first().text() ??
-          ''
-        ).trim();
+      const candidates = $('table.MK_product_list tr, li[id^="anchorBoxId_"], div.item_box, .brand_prd_box li, ul.prdList li, .xans-product-listnormal li');
+      recordRawCards(diagnostics, urlDiagnostics, candidates.length);
 
-        const name = normalizeName(raw.replace(/^상품명\s*:\s*/, ''));
-        if (!name || name.length < 2) return;
+      candidates.each((_, el) => {
+        const $el = $(el);
+
+        const raw = normalizeName(
+          ($el.find('a[href*="shopdetail"], a[href*="product_detail"]').first().text() ??
+            $el.find('.name a, .prd_name a').first().text() ??
+            '')
+        );
+
+        if (!raw || raw.length < 2) {
+          recordSkipped(diagnostics, urlDiagnostics, 'missing_or_short_name');
+          return;
+        }
+
+        const name = raw.replace(/^상품명\s*:\s*/, '');
 
         const priceMatch = $el.text().match(/([\d,]+)\s*원/);
         const price = priceMatch ? parsePrice(priceMatch[1]) : null;
-        if (!price) return;
+
+        if (!price) {
+          recordSkipped(diagnostics, urlDiagnostics, 'missing_price');
+          return;
+        }
 
         const img = $el.find('img').first().attr('src') ?? null;
         const imageUrl = img ? resolveUrl(baseUrl, img) : null;
 
-        const href = $el.find('a[href*="shopdetail"], a[href*="product_detail"], a').first().attr('href') ?? '';
+        const href =
+          $el.find('a[href*="shopdetail"], a[href*="product_detail"], a').first().attr('href') ?? '';
         const productUrl = href ? resolveUrl(baseUrl, href) : '';
-        if (!productUrl) return;
 
-        const classified = reclassify({
+        if (!productUrl) {
+          recordSkipped(diagnostics, urlDiagnostics, 'missing_product_url');
+          return;
+        }
+
+        const f = reclassify({
           name,
           category: cat.category,
           subcategory: cat.subcategory,
-          sourceUrl: cat.url,
+          sourceUrl: cat.url
         });
 
-        if (classified.skip) return;
+        if (f.skip) {
+          recordSkipped(diagnostics, urlDiagnostics, 'rule:skip');
+          return;
+        }
+
+        recordAccepted(diagnostics, urlDiagnostics);
 
         all.push({
           name: normalizeName(name),
@@ -800,17 +981,21 @@ async function scrapeLegacy(baseUrl: string, urls: CU[]): Promise<SP[]> {
           originalPrice: null,
           imageUrl,
           productUrl,
-          category: classified.category,
-          subcategory: classified.subcategory,
+          category: f.category,
+          subcategory: f.subcategory,
           shippingFee: null
         });
       });
     } catch (err) {
+      recordPageError(diagnostics, urlDiagnostics, err);
       console.error(`[scrape] ${cat.url}`, err instanceof Error ? err.message : err);
     }
   }
 
-  return dedupeScrapedProducts(all);
+  return {
+    products: dedupeScrapedProducts(all),
+    diagnostics
+  };
 }
 
 function reclassify(input: {
@@ -912,63 +1097,73 @@ function looksLikeJapaneseShinai(name: string) {
 }
 
 export async function runSingleShopScrape(shopKey: string) {
-  const config = SHOP_CONFIG[shopKey];
-  if (!config) return { shopKey, error: 'unknown', scraped: 0, saved: 0 };
+  const c = SHOP_CONFIG[shopKey];
+  if (!c) return { shopKey, error: 'unknown', scraped: 0, saved: 0 };
 
   const shop = await prisma.kendoShop.findUnique({ where: { key: shopKey } });
   if (!shop) return { shopKey, error: 'not-found', scraped: 0, saved: 0 };
 
-  const urls = config.urls;
-  if (!urls.length) return { shopKey, scraped: 0, saved: 0 };
+  const urls = c.urls;
+  if (!urls.length) {
+    return {
+      shopKey,
+      scraped: 0,
+      saved: 0,
+      diagnostics: createShopDiagnostics(shopKey, urls)
+    };
+  }
 
-  const scrapedProducts =
-    config.scraper === 'cafe24'
-      ? await scrapeCafe24(shop.baseUrl, urls, config.encoding)
-      : await scrapeLegacy(shop.baseUrl, urls);
+  const scrapeResult =
+    c.scraper === 'cafe24'
+      ? await scrapeCafe24(shopKey, shop.baseUrl, urls, c.encoding)
+      : await scrapeLegacy(shopKey, shop.baseUrl, urls);
 
-  const products = dedupeScrapedProducts(scrapedProducts);
+  const products = scrapeResult.products;
+  const diagnostics = scrapeResult.diagnostics;
 
   let saved = 0;
-  for (const item of products) {
+  for (const i of products) {
     try {
-      await upsertScrapedProduct(shop.id, item);
+      await upsertScrapedProduct(shop.id, i);
       saved++;
-    } catch (err) {
-      console.error(`[save] ${item.name}`, err instanceof Error ? err.message : err);
+    } catch (e) {
+      diagnostics.saveErrorCount += 1;
+      console.error(`[s] ${i.name}`, e instanceof Error ? e.message : e);
     }
   }
 
   if (products.length > 0) {
-    const activeUrls = Array.from(new Set(products.map((item) => item.productUrl)));
-
+    const activeUrls = Array.from(new Set(products.map((x) => x.productUrl.trim().toLowerCase())));
     await prisma.kendoProductPrice.deleteMany({
-      where: {
-        shopId: shop.id,
-        productUrl: { notIn: activeUrls }
-      }
+      where: { shopId: shop.id, productUrl: { notIn: activeUrls } }
     });
-
     await cleanupDuplicateShopProducts(shop.id);
-
-    await prisma.kendoProduct.deleteMany({
-      where: {
-        prices: { none: {} }
-      }
-    });
+    await prisma.kendoProduct.deleteMany({ where: { prices: { none: {} } } });
   }
 
-  return { shopKey, scraped: products.length, saved };
+  return {
+    shopKey,
+    scraped: products.length,
+    saved,
+    diagnostics
+  };
 }
 
 export async function runFullScrape() {
-  const results: Array<{ shopKey: string; scraped?: number; saved?: number; error?: string }> = [];
+  const r: Array<{
+    shopKey: string;
+    scraped?: number;
+    saved?: number;
+    error?: string;
+    diagnostics?: ShopScrapeDiagnostics;
+  }> = [];
 
-  for (const shopKey of Object.keys(SHOP_CONFIG)) {
-    results.push(await runSingleShopScrape(shopKey));
+  for (const k of Object.keys(SHOP_CONFIG)) {
+    r.push(await runSingleShopScrape(k));
   }
 
   await snapshotDailyPrices();
-  return results;
+  return r;
 }
 
 async function upsertScrapedProduct(shopId: string, item: SP) {
